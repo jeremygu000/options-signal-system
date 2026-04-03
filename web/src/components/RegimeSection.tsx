@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -12,6 +12,8 @@ import Grid from "@mui/material/Grid";
 import SectionHeader from "@/components/SectionHeader";
 import { fetchRegime } from "@/lib/api";
 import type { MarketRegimeResult } from "@/lib/types";
+
+const REFRESH_INTERVAL_MS = 30_000;
 
 function regimeColor(regime: string): "success" | "warning" | "error" {
   if (regime === "risk_on") return "success";
@@ -30,14 +32,26 @@ export default function RegimeSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback((isInitial: boolean) => {
+    if (isInitial) setLoading(true);
     fetchRegime()
-      .then(setData)
+      .then((res) => {
+        setData(res);
+        setError(null);
+      })
       .catch((e: unknown) =>
         setError(e instanceof Error ? e.message : "Failed to load"),
       )
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (isInitial) setLoading(false);
+      });
   }, []);
+
+  useEffect(() => {
+    load(true);
+    const interval = setInterval(() => load(false), REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [load]);
 
   return (
     <Box component="section" id="regime" sx={{ mb: 6 }}>

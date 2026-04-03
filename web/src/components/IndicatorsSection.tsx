@@ -151,9 +151,9 @@ export default function IndicatorsSection() {
                           )}
                           sx={{ flex: 1, height: 6, borderRadius: 3 }}
                           color={
-                            row.range_position > 0.7
+                            (row.range_position ?? 0) > 0.7
                               ? "error"
-                              : row.range_position < 0.3
+                              : (row.range_position ?? 0) < 0.3
                                 ? "success"
                                 : "warning"
                           }

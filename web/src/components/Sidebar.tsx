@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
 import Drawer from "@mui/material/Drawer";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -10,67 +12,72 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
-import PublicIcon from "@mui/icons-material/Public";
-import SignalCellularAltIcon from "@mui/icons-material/SignalCellularAlt";
-import BarChartIcon from "@mui/icons-material/BarChart";
-import CandlestickChartIcon from "@mui/icons-material/CandlestickChart";
+import Tooltip from "@mui/material/Tooltip";
+import DashboardIcon from "@mui/icons-material/Dashboard";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { useThemeMode } from "./ThemeProvider";
 import { fetchHealth } from "@/lib/api";
+import type { HealthResponse } from "@/lib/types";
 
 const DRAWER_WIDTH = 240;
 
 const NAV_ITEMS = [
-  { id: "regime", label: "市场环境", Icon: PublicIcon },
-  { id: "signals", label: "交易信号", Icon: SignalCellularAltIcon },
-  { id: "indicators", label: "技术指标", Icon: BarChartIcon },
-  { id: "charts", label: "价格走势", Icon: CandlestickChartIcon },
-  { id: "compare", label: "价格对比", Icon: CompareArrowsIcon },
+  { href: "/", label: "信号看板", sublabel: "Dashboard", Icon: DashboardIcon },
+  {
+    href: "/compare",
+    label: "价格对比",
+    sublabel: "Compare",
+    Icon: CompareArrowsIcon,
+  },
+  {
+    href: "/options",
+    label: "期权工具",
+    sublabel: "Options",
+    Icon: AccountBalanceIcon,
+  },
 ] as const;
 
-type SectionId = (typeof NAV_ITEMS)[number]["id"];
-
-function scrollTo(id: SectionId) {
-  const el = document.getElementById(id);
-  if (el) {
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+function isNavActive(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname.startsWith(href);
 }
 
 export default function Sidebar() {
-  const [active, setActive] = useState<SectionId>("regime");
+  const pathname = usePathname();
   const [apiStatus, setApiStatus] = useState<"checking" | "online" | "offline">(
     "checking",
   );
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [healthData, setHealthData] = useState<HealthResponse | null>(null);
   const { mode, toggleMode } = useThemeMode();
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.3) {
-            setActive(entry.target.id as SectionId);
-          }
-        }
-      },
-      { threshold: 0.3, rootMargin: "-10% 0px -60% 0px" },
-    );
-
-    for (const item of NAV_ITEMS) {
-      const el = document.getElementById(item.id);
-      if (el) observer.observe(el);
+  const checkHealth = useCallback(async () => {
+    const start = performance.now();
+    try {
+      const data = await fetchHealth();
+      const elapsed = Math.round(performance.now() - start);
+      setApiStatus("online");
+      setLatencyMs(elapsed);
+      setHealthData(data);
+      setLastChecked(new Date());
+    } catch {
+      setApiStatus("offline");
+      setLatencyMs(null);
+      setHealthData(null);
+      setLastChecked(new Date());
     }
-
-    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
-    fetchHealth()
-      .then(() => setApiStatus("online"))
-      .catch(() => setApiStatus("offline"));
-  }, []);
+    checkHealth();
+    const interval = setInterval(checkHealth, 30_000);
+    return () => clearInterval(interval);
+  }, [checkHealth]);
 
   const statusColor =
     apiStatus === "online"
@@ -104,57 +111,61 @@ export default function Sidebar() {
           borderBottom: "1px solid rgba(255,255,255,0.08)",
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <Box
-            sx={{
-              width: 32,
-              height: 32,
-              borderRadius: "8px",
-              background: "linear-gradient(135deg, #3b89ff 0%, #1a6fe0 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <Typography
-              sx={{ color: "#fff", fontWeight: 800, fontSize: "0.875rem" }}
-            >
-              O
-            </Typography>
-          </Box>
-          <Box>
-            <Typography
+        <Link href="/" style={{ textDecoration: "none" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <Box
               sx={{
-                color: "#ffffff",
-                fontWeight: 700,
-                fontSize: "0.85rem",
-                lineHeight: 1.2,
+                width: 32,
+                height: 32,
+                borderRadius: "8px",
+                background:
+                  "linear-gradient(135deg, #3b89ff 0%, #1a6fe0 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
               }}
             >
-              Options Signal
-            </Typography>
-            <Typography
-              sx={{
-                color: "rgba(255,255,255,0.4)",
-                fontSize: "0.65rem",
-                fontFamily: "var(--font-geist-mono)",
-              }}
-            >
-              v1.0.0
-            </Typography>
+              <Typography
+                sx={{ color: "#fff", fontWeight: 800, fontSize: "0.875rem" }}
+              >
+                O
+              </Typography>
+            </Box>
+            <Box>
+              <Typography
+                sx={{
+                  color: "#ffffff",
+                  fontWeight: 700,
+                  fontSize: "0.85rem",
+                  lineHeight: 1.2,
+                }}
+              >
+                Options Signal
+              </Typography>
+              <Typography
+                sx={{
+                  color: "rgba(255,255,255,0.4)",
+                  fontSize: "0.65rem",
+                  fontFamily: "var(--font-geist-mono)",
+                }}
+              >
+                v1.0.0
+              </Typography>
+            </Box>
           </Box>
-        </Box>
+        </Link>
       </Box>
 
       <List sx={{ flex: 1, px: 1.5, py: 2 }}>
         {NAV_ITEMS.map((item) => {
-          const isActive = active === item.id;
+          const isActive = isNavActive(pathname, item.href);
           const { Icon } = item;
           return (
             <ListItemButton
-              key={item.id}
-              onClick={() => scrollTo(item.id)}
+              key={item.href}
+              component={Link}
+              href={item.href}
               selected={isActive}
               sx={{
                 borderRadius: "8px",
@@ -172,6 +183,7 @@ export default function Sidebar() {
                 "&.Mui-selected": {
                   bgcolor: "rgba(59,137,255,0.12)",
                 },
+                textDecoration: "none",
               }}
             >
               <ListItemIcon
@@ -184,11 +196,19 @@ export default function Sidebar() {
               </ListItemIcon>
               <ListItemText
                 primary={item.label}
+                secondary={item.sublabel}
                 primaryTypographyProps={{
                   fontSize: "0.875rem",
                   fontWeight: isActive ? 600 : 400,
                   color: "inherit",
                   fontFamily: "var(--font-geist-sans)",
+                }}
+                secondaryTypographyProps={{
+                  fontSize: "0.65rem",
+                  color: isActive
+                    ? "rgba(59,137,255,0.6)"
+                    : "rgba(255,255,255,0.3)",
+                  fontFamily: "var(--font-geist-mono)",
                 }}
               />
               {isActive && (
@@ -258,6 +278,80 @@ export default function Sidebar() {
       </Box>
 
       <Box sx={{ px: 2.5, py: 2 }}>
+        {/* Header row: API label + status dot + retry */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 1,
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: "0.65rem",
+              color: "rgba(255,255,255,0.35)",
+              fontFamily: "var(--font-geist-mono)",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+            }}
+          >
+            API
+          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+            <Box
+              sx={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                bgcolor: statusColor,
+                ...(apiStatus === "online" && {
+                  boxShadow: `0 0 6px 2px ${statusColor}60`,
+                  animation: "pulse-dot 2s ease-in-out infinite",
+                  "@keyframes pulse-dot": {
+                    "0%, 100%": { opacity: 1, boxShadow: `0 0 6px 2px ${statusColor}60` },
+                    "50%": { opacity: 0.7, boxShadow: `0 0 2px 1px ${statusColor}30` },
+                  },
+                }),
+                ...(apiStatus === "checking" && {
+                  animation: "blink 1s ease-in-out infinite",
+                  "@keyframes blink": {
+                    "0%, 100%": { opacity: 1 },
+                    "50%": { opacity: 0.3 },
+                  },
+                }),
+              }}
+            />
+            <Typography
+              sx={{
+                fontSize: "0.65rem",
+                color: statusColor,
+                fontFamily: "var(--font-geist-mono)",
+                fontWeight: 600,
+              }}
+            >
+              {statusLabel}
+            </Typography>
+            {apiStatus === "offline" && (
+              <Tooltip title="重试 Retry" arrow>
+                <IconButton
+                  onClick={checkHealth}
+                  size="small"
+                  sx={{
+                    color: "rgba(255,255,255,0.4)",
+                    p: 0.25,
+                    "&:hover": { color: "#3b89ff", bgcolor: "rgba(255,255,255,0.06)" },
+                  }}
+                  aria-label="Retry health check"
+                >
+                  <RefreshIcon sx={{ fontSize: "0.85rem" }} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        </Box>
+
+        {/* Latency + version row */}
         <Box
           sx={{
             display: "flex",
@@ -268,46 +362,109 @@ export default function Sidebar() {
         >
           <Typography
             sx={{
-              fontSize: "0.65rem",
-              color: "rgba(255,255,255,0.35)",
+              fontSize: "0.6rem",
+              color: "rgba(255,255,255,0.25)",
               fontFamily: "var(--font-geist-mono)",
-              textTransform: "uppercase",
             }}
           >
-            API
+            {process.env.NEXT_PUBLIC_API_URL ?? "localhost:8300"}
           </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Box
-              sx={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                bgcolor: statusColor,
-              }}
-            />
+          {latencyMs !== null && (
             <Typography
               sx={{
-                fontSize: "0.65rem",
-                color: statusColor,
+                fontSize: "0.6rem",
+                color:
+                  latencyMs < 200
+                    ? "#36bb80"
+                    : latencyMs < 500
+                      ? "#fdbc2a"
+                      : "#ff7134",
                 fontFamily: "var(--font-geist-mono)",
               }}
             >
-              {statusLabel}
+              {latencyMs}ms
             </Typography>
-          </Box>
+          )}
         </Box>
-        <Typography
+
+        {/* Data status pills */}
+        {healthData && healthData.data_status && (
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mb: 0.75 }}>
+            {Object.entries(healthData.data_status).map(([key, ok]) => (
+              <Box
+                key={key}
+                sx={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 0.4,
+                  px: 0.75,
+                  py: 0.15,
+                  borderRadius: "4px",
+                  bgcolor: ok
+                    ? "rgba(54,187,128,0.12)"
+                    : "rgba(255,113,52,0.12)",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: "50%",
+                    bgcolor: ok ? "#36bb80" : "#ff7134",
+                  }}
+                />
+                <Typography
+                  sx={{
+                    fontSize: "0.55rem",
+                    color: ok
+                      ? "rgba(54,187,128,0.9)"
+                      : "rgba(255,113,52,0.9)",
+                    fontFamily: "var(--font-geist-mono)",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {key}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        )}
+
+        {/* Version + last checked */}
+        <Box
           sx={{
-            fontSize: "0.6rem",
-            color: "rgba(255,255,255,0.25)",
-            fontFamily: "var(--font-geist-mono)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          {process.env.NEXT_PUBLIC_API_URL ?? "localhost:8200"}
-        </Typography>
+          {healthData?.version && (
+            <Typography
+              sx={{
+                fontSize: "0.55rem",
+                color: "rgba(255,255,255,0.2)",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+            >
+              {healthData.version}
+            </Typography>
+          )}
+          {lastChecked && (
+            <Typography
+              sx={{
+                fontSize: "0.55rem",
+                color: "rgba(255,255,255,0.18)",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+            >
+              {lastChecked.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </Typography>
+          )}
+        </Box>
       </Box>
     </Drawer>
   );

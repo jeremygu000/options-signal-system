@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
+import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
@@ -14,6 +16,8 @@ import Tooltip from "@mui/material/Tooltip";
 import SectionHeader from "@/components/SectionHeader";
 import { fetchScan } from "@/lib/api";
 import type { Signal, FullScanResponse } from "@/lib/types";
+
+const REFRESH_INTERVAL_MS = 30_000;
 
 function signalLevelColor(level: string): "error" | "warning" | "default" {
   if (level === "强信号") return "error";
@@ -27,6 +31,7 @@ function biasColor(bias: string): string {
 
 function SignalCard({ signal }: { signal: Signal }) {
   const levelColor = signalLevelColor(signal.level);
+  const router = useRouter();
 
   return (
     <Card
@@ -39,9 +44,18 @@ function SignalCard({ signal }: { signal: Signal }) {
             : signal.level === "观察信号"
               ? "warning.main"
               : "divider",
+        transition: "box-shadow 0.2s ease, transform 0.15s ease",
+        "&:hover": {
+          boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+          transform: "translateY(-1px)",
+        },
       }}
     >
-      <CardContent>
+      <CardActionArea
+        onClick={() => router.push(`/symbol/${signal.symbol.toLowerCase()}`)}
+        sx={{ height: "100%", display: "flex", alignItems: "stretch" }}
+      >
+      <CardContent sx={{ width: "100%" }}>
         <Box
           sx={{
             display: "flex",
@@ -269,6 +283,7 @@ function SignalCard({ signal }: { signal: Signal }) {
           ))}
         </Box>
       </CardContent>
+      </CardActionArea>
     </Card>
   );
 }
@@ -277,15 +292,29 @@ export default function SignalsSection() {
   const [data, setData] = useState<FullScanResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  useEffect(() => {
+  const load = useCallback((isInitial: boolean) => {
+    if (isInitial) setLoading(true);
     fetchScan()
-      .then(setData)
+      .then((res) => {
+        setData(res);
+        setLastUpdated(new Date());
+        setError(null);
+      })
       .catch((e: unknown) =>
         setError(e instanceof Error ? e.message : "Failed to load"),
       )
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (isInitial) setLoading(false);
+      });
   }, []);
+
+  useEffect(() => {
+    load(true);
+    const interval = setInterval(() => load(false), REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [load]);
 
   const signals = data?.signals ?? [];
   const strongSignals = signals.filter((s) => s.level === "强信号");
@@ -294,7 +323,22 @@ export default function SignalsSection() {
 
   return (
     <Box component="section" id="signals" sx={{ mb: 6 }}>
-      <SectionHeader number="02" title="交易信号" subtitle="Signal Dashboard" />
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", mb: 0 }}>
+        <SectionHeader number="02" title="交易信号" subtitle="Signal Dashboard" />
+        {lastUpdated && (
+          <Typography
+            variant="caption"
+            sx={{
+              fontFamily: "var(--font-geist-mono)",
+              fontSize: "0.65rem",
+              color: "text.disabled",
+              pb: 2,
+            }}
+          >
+            Auto-refresh 30s &middot; {lastUpdated.toLocaleTimeString()}
+          </Typography>
+        )}
+      </Box>
 
       {loading && (
         <Grid container spacing={2}>

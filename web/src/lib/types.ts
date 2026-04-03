@@ -27,24 +27,26 @@ export interface Signal {
 export interface FullScanResponse {
   regime: MarketRegimeResult;
   signals: Signal[];
+  timestamp: string;
 }
 
 export interface IndicatorSnapshot {
   symbol: string;
-  sma5: number;
-  sma10: number;
-  atr14: number;
-  vwap: number;
-  prev_high: number;
-  prev_low: number;
-  rolling_high_20: number;
-  rolling_low_20: number;
-  range_position: number;
-  timestamp: string;
+  price: number;
+  sma5: number | null;
+  sma10: number | null;
+  atr14: number | null;
+  vwap: number | null;
+  prev_high: number | null;
+  prev_low: number | null;
+  rolling_high_20: number | null;
+  rolling_low_20: number | null;
+  range_position: number | null;
 }
 
 export interface OHLCVBar {
   date: string;
+  time: number;
   open: number;
   high: number;
   low: number;
@@ -52,22 +54,91 @@ export interface OHLCVBar {
   volume: number;
 }
 
+export interface PaginatedOHLCV {
+  data: OHLCVBar[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
 export interface SymbolInfo {
   symbol: string;
-  bias: Bias;
-  has_daily_data: boolean;
-  has_intraday_data: boolean;
+  has_daily: boolean;
+  daily_rows: number;
+  last_date: string;
 }
 
 export interface HealthResponse {
   status: string;
   timestamp: string;
+  data_status: Record<string, boolean>;
+  version: string;
 }
 
-export interface ComparePoint {
+export interface CompareBar {
   date: string;
-  time?: number;
+  time: number;
   close: number;
 }
 
-export type CompareResponse = Record<string, ComparePoint[]>;
+export type CompareResponse = Record<string, CompareBar[]>;
+
+// ── Options & Backtest types ────────────────────────────────────────
+
+export type StrategyType =
+  | "short_call_spread"
+  | "long_put_spread"
+  | "short_calls"
+  | "short_puts"
+  | "long_calls"
+  | "long_puts"
+  | "long_call_spread"
+  | "short_put_spread"
+  | "iron_condor"
+  | "straddle";
+
+export interface BacktestRequest {
+  symbol: string;
+  strategy: StrategyType;
+  max_entry_dte: number;
+  exit_dte: number;
+  leg1_delta: number;
+  leg2_delta: number;
+  capital: number;
+  quantity: number;
+  max_positions: number;
+  commission_per_contract: number;
+  stop_loss: number | null;
+  take_profit: number | null;
+  max_expirations: number;
+}
+
+export interface BacktestMetrics {
+  total_trades: number;
+  win_rate: number;
+  mean_return: number;
+  sharpe_ratio: number;
+  sortino_ratio: number;
+  max_drawdown: number;
+  profit_factor: number;
+  calmar_ratio: number;
+  final_equity: number;
+}
+
+export interface BacktestResponse {
+  symbol: string;
+  strategy: string;
+  metrics: BacktestMetrics;
+  equity_curve: number[];
+  trade_count: number;
+  error: string | null;
+  timestamp: string;
+}
+
+export interface OptionsChainSummary {
+  symbol: string;
+  expirations: string[];
+  total_contracts: number;
+  calls_count: number;
+  puts_count: number;
+}
