@@ -1,0 +1,80 @@
+"""Data provider — reads daily data from ~/.market_data/parquet/, intraday from yfinance."""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+import pandas as pd
+import yfinance as yf
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+def _sanitize_ticker(ticker: str) -> str:
+    """Match yahoo-finance-data's sanitization: ^VIX → VIX."""
+    return ticker.replace("^", "").replace("/", "_").replace("\\", "_").upper()
+
+
+def _parquet_path(ticker: str) -> Path:
+    return settings.parquet_dir / f"{_sanitize_ticker(ticker)}.parquet"
+
+
+def get_daily(symbol: str, days: int | None = None) -> pd.DataFrame:
+    """Load daily OHLCV from local Parquet store.
+
+    Args:
+        symbol: Ticker symbol (e.g. "QQQ", "^VIX").
+        days: Number of days to look back. None = all available data.
+
+    Returns:
+        DataFrame with DatetimeIndex and columns: Open, High, Low, Close, Volume.
+        Empty DataFrame if no data found.
+    """
+    path = _parquet_path(symbol)
+    if not path.exists():
+        logger.warning("%s: no local data at %s", symbol, path)
+        return pd.DataFrame()
+
+    df = pd.read_parquet(path)
+
+    if days is not None:
+        cutoff = pd.Timestamp.now() - pd.Timedelta(days=days)
+        df = df[df.index >= cutoff]
+
+    if df.empty:
+        logger.warning("%s: no data after filtering (days=%s)", symbol, days)
+
+    return df
+
+
+def get_intraday(
+    symbol: str,
+    period: str | None = None,
+    interval: str | None = None,
+) -> pd.DataFrame:
+    """Fetch intraday data from yfinance (not stored in Parquet).
+
+    Args:
+        symbol: Ticker symbol.
+        period: yfinance period string (default from config: "5d").
+        interval: yfinance interval string (default from config: "15m").
+
+    Returns:
+        DataFrame with DatetimeIndex and OHLCV columns.
+        Empty DataFrame on failure.
+    """
+    _period = period or settings.intraday_period
+    _interval = interval or settings.intraday_interval
+
+    try:
+        ticker = yf.Ticker(symbol)
+        df: pd.DataFrame = ticker.history(period=_period, interval=_interval)
+        if df.empty:
+            logger.warning("%s: yfinance returned empty intraday data", symbol)
+        return df
+    except Exception:
+        logger.exception("%s: failed to fetch intraday data", symbol)
+        return pd.DataFrame()

@@ -1,0 +1,9 @@
+pandas>=2.2
+numpy>=1.26
+yfinance>=0.2.40
+requests>=2.31
+pydantic>=2.5
+pydantic-settings>=2.1
+pyarrow>=17.0
+fastapi>=0.115
+uvicorn[standard]>=0.32
