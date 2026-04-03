@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     intraday_period: str = Field(default="5d", description="yfinance intraday period")
     intraday_interval: str = Field(default="15m", description="yfinance intraday interval")
 
+    # ── Backtest defaults ────────────────────────────────────────────
+    backtest_max_entry_dte: int = Field(default=45, description="Default max DTE for entry")
+    backtest_exit_dte: int = Field(default=21, description="Default DTE for exit")
+    backtest_capital: float = Field(default=100_000.0, description="Default starting capital")
+    backtest_commission: float = Field(default=0.65, description="Commission per contract")
+
     @property
     def telegram_enabled(self) -> bool:
         return bool(self.telegram_bot_token.get_secret_value() and self.telegram_chat_id.get_secret_value())

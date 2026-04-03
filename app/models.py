@@ -64,3 +64,52 @@ class Signal(BaseModel):
     option_hint: str = ""
     timestamp: datetime = Field(default_factory=now_ny)
     score: int = Field(default=0, description="Internal score used to determine signal level")
+
+
+# ── Backtest models ──────────────────────────────────────────────────
+
+
+class BacktestRequest(BaseModel):
+    symbol: str
+    strategy: str = Field(default="short_call_spread", description="optopsy strategy name")
+    max_entry_dte: int = Field(default=45, ge=7, le=180)
+    exit_dte: int = Field(default=21, ge=0, le=90)
+    leg1_delta: float = Field(default=0.30, ge=0.05, le=0.95)
+    leg2_delta: float = Field(default=0.16, ge=0.05, le=0.95)
+    capital: float = Field(default=100_000.0, ge=1_000.0, le=10_000_000.0)
+    quantity: int = Field(default=1, ge=1, le=100)
+    max_positions: int = Field(default=1, ge=1, le=50)
+    commission_per_contract: float = Field(default=0.65, ge=0.0, le=10.0)
+    stop_loss: float | None = Field(default=None, ge=0.0, le=1.0)
+    take_profit: float | None = Field(default=None, ge=0.0, le=10.0)
+    max_expirations: int = Field(default=4, ge=1, le=12)
+
+
+class BacktestMetrics(BaseModel):
+    total_trades: int = 0
+    win_rate: float = 0.0
+    mean_return: float = 0.0
+    sharpe_ratio: float = 0.0
+    sortino_ratio: float = 0.0
+    max_drawdown: float = 0.0
+    profit_factor: float = 0.0
+    calmar_ratio: float = 0.0
+    final_equity: float = 0.0
+
+
+class BacktestResponse(BaseModel):
+    symbol: str
+    strategy: str
+    metrics: BacktestMetrics
+    equity_curve: list[float] = Field(default_factory=list)
+    trade_count: int = 0
+    error: str | None = None
+    timestamp: datetime = Field(default_factory=now_ny)
+
+
+class OptionsChainSummary(BaseModel):
+    symbol: str
+    expirations: list[str] = Field(default_factory=list)
+    total_contracts: int = 0
+    calls_count: int = 0
+    puts_count: int = 0

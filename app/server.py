@@ -20,11 +20,21 @@ from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 from pydantic import BaseModel, Field
 
+from app.backtester import BacktestConfig, StrategyType, run_backtest, run_multi_strategy_backtest
 from app.config import settings
 from app.data_provider import clear_cache as clear_data_cache, get_daily, get_intraday
 from app.indicators import atr, prev_day_high, prev_day_low, rolling_high, rolling_low, session_vwap, sma
 from app.market_regime import MarketRegimeEngine
-from app.models import MarketRegimeResult, Signal, SignalLevel
+from app.models import (
+    BacktestMetrics,
+    BacktestRequest,
+    BacktestResponse,
+    MarketRegimeResult,
+    OptionsChainSummary,
+    Signal,
+    SignalLevel,
+)
+from app.options_data import clear_chain_cache, get_expirations, get_options_chain_multi
 from app.strategy_engine import StrategyEngine
 from app.utils import now_ny
 
@@ -158,6 +168,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     get_regime_engine.cache_clear()
     get_strategy_engine.cache_clear()
     clear_data_cache()
+    clear_chain_cache()
     logger.info("Signal system API shutting down")
 
 
@@ -165,6 +176,7 @@ tags_metadata = [
     {"name": "health", "description": "Health & status checks"},
     {"name": "market", "description": "Market regime & signal endpoints"},
     {"name": "data", "description": "OHLCV & indicator data"},
+    {"name": "options", "description": "Options chain & backtesting"},
 ]
 
 app = FastAPI(
@@ -419,3 +431,117 @@ async def compare(
 
     results = await asyncio.gather(*(fetch_compare(s) for s in symbols))
     return dict(results)
+
+
+# ── Options & Backtest endpoints ─────────────────────────────────────
+
+
+@app.get("/api/v1/options/expirations/{symbol}", response_model=list[str], tags=["options"])
+@app.get("/api/options/expirations/{symbol}", response_model=list[str], include_in_schema=False)
+async def options_expirations(symbol: ValidSymbol) -> list[str]:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, get_expirations, symbol)
+
+
+@app.get("/api/v1/options/chain/{symbol}", response_model=OptionsChainSummary, tags=["options"])
+@app.get("/api/options/chain/{symbol}", response_model=OptionsChainSummary, include_in_schema=False)
+async def options_chain(
+    symbol: ValidSymbol,
+    max_expirations: int = Query(default=4, ge=1, le=12),
+) -> OptionsChainSummary:
+    loop = asyncio.get_event_loop()
+    df = await loop.run_in_executor(None, get_options_chain_multi, symbol, max_expirations)
+
+    if df.empty:
+        return OptionsChainSummary(symbol=symbol)
+
+    expirations_list: list[str] = []
+    if "expiration" in df.columns:
+        expirations_list = sorted(df["expiration"].dt.strftime("%Y-%m-%d").unique().tolist())
+
+    calls_count = int((df["option_type"] == "c").sum()) if "option_type" in df.columns else 0
+    puts_count = int((df["option_type"] == "p").sum()) if "option_type" in df.columns else 0
+
+    return OptionsChainSummary(
+        symbol=symbol,
+        expirations=expirations_list,
+        total_contracts=len(df),
+        calls_count=calls_count,
+        puts_count=puts_count,
+    )
+
+
+@app.post("/api/v1/backtest", response_model=BacktestResponse, tags=["options"])
+@app.post("/api/backtest", response_model=BacktestResponse, include_in_schema=False)
+async def run_backtest_endpoint(req: BacktestRequest) -> BacktestResponse:
+    upper_symbol = req.symbol.upper()
+    if upper_symbol not in ALLOWED_SYMBOLS:
+        raise HTTPException(status_code=400, detail=f"Unknown symbol: {req.symbol}. Allowed: {sorted(ALLOWED_SYMBOLS)}")
+
+    try:
+        strategy_type = StrategyType(req.strategy)
+    except ValueError:
+        valid = [s.value for s in StrategyType]
+        raise HTTPException(status_code=400, detail=f"Unknown strategy: {req.strategy}. Valid: {valid}")
+
+    loop = asyncio.get_event_loop()
+
+    options_data, daily_data = await asyncio.gather(
+        loop.run_in_executor(None, get_options_chain_multi, upper_symbol, req.max_expirations),
+        loop.run_in_executor(None, get_daily, upper_symbol, 365),
+    )
+
+    if options_data.empty:
+        return BacktestResponse(
+            symbol=upper_symbol,
+            strategy=req.strategy,
+            metrics=BacktestMetrics(),
+            error="No options data available for this symbol",
+        )
+
+    stock_data = pd.DataFrame()
+    if not daily_data.empty:
+        stock_data = pd.DataFrame(
+            {
+                "underlying_symbol": upper_symbol,
+                "quote_date": pd.DatetimeIndex(daily_data.index),
+                "close": daily_data["Close"].values,
+            }
+        )
+
+    config = BacktestConfig(
+        strategy_type=strategy_type,
+        max_entry_dte=req.max_entry_dte,
+        exit_dte=req.exit_dte,
+        leg1_delta=req.leg1_delta,
+        leg2_delta=req.leg2_delta,
+        capital=req.capital,
+        quantity=req.quantity,
+        max_positions=req.max_positions,
+        commission_per_contract=req.commission_per_contract,
+        stop_loss=req.stop_loss,
+        take_profit=req.take_profit,
+    )
+
+    bt_result = await loop.run_in_executor(None, run_backtest, options_data, stock_data, config, None)
+
+    metrics = BacktestMetrics(
+        total_trades=bt_result.total_trades,
+        win_rate=bt_result.win_rate,
+        mean_return=bt_result.mean_return,
+        sharpe_ratio=bt_result.sharpe_ratio,
+        sortino_ratio=bt_result.sortino_ratio,
+        max_drawdown=bt_result.max_drawdown,
+        profit_factor=bt_result.profit_factor,
+        calmar_ratio=bt_result.calmar_ratio,
+        final_equity=bt_result.final_equity,
+    )
+
+    return BacktestResponse(
+        symbol=upper_symbol,
+        strategy=req.strategy,
+        metrics=metrics,
+        equity_curve=bt_result.equity_curve,
+        trade_count=bt_result.total_trades,
+        error=bt_result.error,
+    )
