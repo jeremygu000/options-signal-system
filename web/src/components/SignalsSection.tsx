@@ -10,6 +10,7 @@ import Skeleton from "@mui/material/Skeleton";
 import Alert from "@mui/material/Alert";
 import Grid from "@mui/material/Grid";
 import Divider from "@mui/material/Divider";
+import Tooltip from "@mui/material/Tooltip";
 import SectionHeader from "@/components/SectionHeader";
 import { fetchScan } from "@/lib/api";
 import type { Signal, FullScanResponse } from "@/lib/types";
@@ -85,16 +86,40 @@ function SignalCard({ signal }: { signal: Signal }) {
               size="small"
               sx={{ fontWeight: 700 }}
             />
-            <Chip
-              label={signal.bias}
-              size="small"
-              sx={{
-                bgcolor: biasColor(signal.bias),
-                color: "#fff",
-                fontWeight: 600,
-                fontSize: "0.7rem",
-              }}
-            />
+            <Tooltip
+              title={
+                <Box>
+                  <Typography
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: "0.75rem",
+                      mb: 0.5,
+                    }}
+                  >
+                    判断依据
+                  </Typography>
+                  {signal.rationale.map((r) => (
+                    <Typography key={r} sx={{ fontSize: "0.7rem", mb: 0.25 }}>
+                      • {r}
+                    </Typography>
+                  ))}
+                </Box>
+              }
+              arrow
+              placement="top"
+            >
+              <Chip
+                label={signal.bias}
+                size="small"
+                sx={{
+                  bgcolor: biasColor(signal.bias),
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: "0.7rem",
+                  cursor: "help",
+                }}
+              />
+            </Tooltip>
           </Box>
         </Box>
 
@@ -141,15 +166,54 @@ function SignalCard({ signal }: { signal: Signal }) {
             >
               信号分数
             </Typography>
-            <Typography
-              sx={{
-                fontWeight: 700,
-                fontFamily: "var(--font-geist-mono)",
-                fontSize: "0.875rem",
-              }}
+            <Tooltip
+              title={
+                <Box>
+                  <Typography
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: "0.75rem",
+                      mb: 0.5,
+                    }}
+                  >
+                    分数构成
+                  </Typography>
+                  {signal.rationale.map((r) => (
+                    <Typography key={r} sx={{ fontSize: "0.7rem", mb: 0.25 }}>
+                      • {r}
+                    </Typography>
+                  ))}
+                  {signal.action && (
+                    <Typography
+                      sx={{
+                        fontSize: "0.7rem",
+                        mt: 0.5,
+                        fontStyle: "italic",
+                        opacity: 0.85,
+                      }}
+                    >
+                      → {signal.action}
+                    </Typography>
+                  )}
+                </Box>
+              }
+              arrow
+              placement="top"
             >
-              {signal.score}
-            </Typography>
+              <Typography
+                sx={{
+                  fontWeight: 700,
+                  fontFamily: "var(--font-geist-mono)",
+                  fontSize: "0.875rem",
+                  cursor: "help",
+                  display: "inline-block",
+                  borderBottom: "1px dashed",
+                  borderColor: "text.disabled",
+                }}
+              >
+                {signal.score}
+              </Typography>
+            </Tooltip>
           </Grid>
           <Grid size={{ xs: 6 }}>
             <Typography
