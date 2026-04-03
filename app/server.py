@@ -1,7 +1,7 @@
 """FastAPI server — REST API for the web dashboard.
 
 Start:
-    uvicorn app.server:app --port 8200 --reload
+    uvicorn app.server:app --port 8300 --reload
 """
 
 from __future__ import annotations
@@ -77,7 +77,7 @@ class OHLCVBar(BaseModel):
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
-    logger.info("Signal system API started on port 8200")
+    logger.info("Signal system API started on port 8300")
     yield
 
 

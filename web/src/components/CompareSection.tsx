@@ -79,7 +79,7 @@ function CompareChart({ data }: { data: CompareResponse }) {
         series.setData(
           points.map((p) => ({
             time: p.date as import("lightweight-charts").Time,
-            value: p.value,
+            value: p.close,
           })),
         );
       }

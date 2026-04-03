@@ -37,8 +37,8 @@ export interface IndicatorSnapshot {
   vwap: number;
   prev_high: number;
   prev_low: number;
-  rolling_20d_high: number;
-  rolling_20d_low: number;
+  rolling_high_20: number;
+  rolling_low_20: number;
   range_position: number;
   timestamp: string;
 }
@@ -66,7 +66,8 @@ export interface HealthResponse {
 
 export interface ComparePoint {
   date: string;
-  value: number;
+  time?: number;
+  close: number;
 }
 
 export type CompareResponse = Record<string, ComparePoint[]>;

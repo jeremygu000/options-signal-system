@@ -27,7 +27,7 @@ options-signal-system/
     strategy_engine.py  # StrategyEngine — per-symbol directional scoring
     report.py           # Chinese-language console + notification report builder
     notifier.py         # Telegram + WeChat + CompositeNotifier
-    server.py           # FastAPI REST API (port 8200)
+    server.py           # FastAPI REST API (port 8300)
     main.py             # CLI entry point
     utils.py            # Timezone helpers, market hours check, logging
   tests/
@@ -83,7 +83,7 @@ python -m app.main --loop --always-run          # Poll outside market hours too
 ### REST API server
 
 ```bash
-uvicorn app.server:app --host 0.0.0.0 --port 8200 --reload
+uvicorn app.server:app --host 0.0.0.0 --port 8300 --reload
 ```
 
 ### Web dashboard
@@ -91,10 +91,10 @@ uvicorn app.server:app --host 0.0.0.0 --port 8200 --reload
 ```bash
 cd web
 npm install
-npm run dev     # Starts on http://localhost:3000
+npm run dev     # Starts on http://localhost:3100
 ```
 
-Make sure the FastAPI server is running on port 8200 before starting the dashboard.
+Make sure the FastAPI server is running on port 8300 before starting the dashboard.
 
 ## Environment Variables
 

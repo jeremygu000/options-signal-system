@@ -95,49 +95,49 @@ export default function IndicatorsSection() {
                       align="right"
                       sx={{ fontFamily: "var(--font-geist-mono)" }}
                     >
-                      {row.sma5.toFixed(2)}
+                      {(row.sma5 ?? 0).toFixed(2)}
                     </TableCell>
                     <TableCell
                       align="right"
                       sx={{ fontFamily: "var(--font-geist-mono)" }}
                     >
-                      {row.sma10.toFixed(2)}
+                      {(row.sma10 ?? 0).toFixed(2)}
                     </TableCell>
                     <TableCell
                       align="right"
                       sx={{ fontFamily: "var(--font-geist-mono)" }}
                     >
-                      {row.atr14.toFixed(2)}
+                      {(row.atr14 ?? 0).toFixed(2)}
                     </TableCell>
                     <TableCell
                       align="right"
                       sx={{ fontFamily: "var(--font-geist-mono)" }}
                     >
-                      {row.vwap.toFixed(2)}
+                      {(row.vwap ?? 0).toFixed(2)}
                     </TableCell>
                     <TableCell
                       align="right"
                       sx={{ fontFamily: "var(--font-geist-mono)" }}
                     >
-                      {row.prev_high.toFixed(2)}
+                      {(row.prev_high ?? 0).toFixed(2)}
                     </TableCell>
                     <TableCell
                       align="right"
                       sx={{ fontFamily: "var(--font-geist-mono)" }}
                     >
-                      {row.prev_low.toFixed(2)}
+                      {(row.prev_low ?? 0).toFixed(2)}
                     </TableCell>
                     <TableCell
                       align="right"
                       sx={{ fontFamily: "var(--font-geist-mono)" }}
                     >
-                      {row.rolling_20d_high.toFixed(2)}
+                      {(row.rolling_high_20 ?? 0).toFixed(2)}
                     </TableCell>
                     <TableCell
                       align="right"
                       sx={{ fontFamily: "var(--font-geist-mono)" }}
                     >
-                      {row.rolling_20d_low.toFixed(2)}
+                      {(row.rolling_low_20 ?? 0).toFixed(2)}
                     </TableCell>
                     <TableCell>
                       <Box
@@ -147,7 +147,7 @@ export default function IndicatorsSection() {
                           variant="determinate"
                           value={Math.min(
                             100,
-                            Math.max(0, row.range_position * 100),
+                            Math.max(0, (row.range_position ?? 0) * 100),
                           )}
                           sx={{ flex: 1, height: 6, borderRadius: 3 }}
                           color={
@@ -166,7 +166,7 @@ export default function IndicatorsSection() {
                             textAlign: "right",
                           }}
                         >
-                          {(row.range_position * 100).toFixed(0)}%
+                          {((row.range_position ?? 0) * 100).toFixed(0)}%
                         </Typography>
                       </Box>
                     </TableCell>

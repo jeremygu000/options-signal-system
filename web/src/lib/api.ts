@@ -8,7 +8,7 @@ import type {
   CompareResponse,
 } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8200";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8300";
 
 async function fetcher<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
