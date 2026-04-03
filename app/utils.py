@@ -7,13 +7,56 @@ import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import structlog
+
 NY_TZ = ZoneInfo("America/New_York")
 
 
-def setup_logging(level: int = logging.INFO) -> None:
-    """Configure root logger with a clean format."""
-    fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-    logging.basicConfig(level=level, format=fmt, stream=sys.stdout, force=True)
+def setup_logging(level: int = logging.INFO, json_format: bool = False) -> None:
+    """Configure root logger with structlog processors.
+
+    Args:
+        level: Logging level (default: INFO).
+        json_format: If True, output JSON lines (for production). Otherwise human-readable.
+    """
+    shared_processors: list[structlog.types.Processor] = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+    ]
+
+    if json_format:
+        renderer: structlog.types.Processor = structlog.processors.JSONRenderer()
+    else:
+        renderer = structlog.dev.ConsoleRenderer()
+
+    structlog.configure(
+        processors=[
+            *shared_processors,
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+    formatter = structlog.stdlib.ProcessorFormatter(
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            renderer,
+        ],
+    )
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(level)
 
 
 def now_ny() -> datetime:

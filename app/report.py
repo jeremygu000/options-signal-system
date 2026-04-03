@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from app.models import MarketRegimeResult, Signal, SignalLevel
+from app.utils import now_ny
 
 
 def build_report(regime: MarketRegimeResult, signals: list[Signal]) -> str:
     lines: list[str] = []
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_ny().strftime("%Y-%m-%d %H:%M:%S")
     lines.append("=" * 60)
     lines.append(f"  期权信号系统报告  |  {now}")
     lines.append("=" * 60)
@@ -74,7 +73,7 @@ def _format_signal(sig: Signal) -> str:
 def build_telegram_message(regime: MarketRegimeResult, signals: list[Signal]) -> str:
     """Compact message for Telegram / WeChat notifications."""
     lines: list[str] = []
-    lines.append(f"📊 期权信号 | {datetime.now().strftime('%H:%M')}")
+    lines.append(f"📊 期权信号 | {now_ny().strftime('%H:%M')}")
     lines.append(f"大盘: {regime.regime.value} (QQQ {regime.qqq_price:.2f}, VIX {regime.vix_price:.2f})")
     lines.append("")
 

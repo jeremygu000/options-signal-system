@@ -7,6 +7,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from app.utils import now_ny
+
 # ── Enums ────────────────────────────────────────────────────────────
 
 
@@ -35,7 +37,7 @@ class MarketRegimeResult(BaseModel):
     reasons: list[str] = Field(default_factory=list)
     qqq_price: float = 0.0
     vix_price: float = 0.0
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=now_ny)
 
 
 # ── Strategy config per symbol ───────────────────────────────────────
@@ -60,5 +62,5 @@ class Signal(BaseModel):
     trigger_price: float = 0.0
     option_structure: str = ""
     option_hint: str = ""
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=now_ny)
     score: int = Field(default=0, description="Internal score used to determine signal level")

@@ -1,0 +1,10 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8300:8300"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data:ro
+    restart: unless-stopped

@@ -14,6 +14,7 @@ import pandas as pd
 from app.data_provider import get_daily
 from app.indicators import sma
 from app.models import MarketRegime, MarketRegimeResult
+from app.utils import now_ny
 
 logger = logging.getLogger(__name__)
 
@@ -125,5 +126,5 @@ class MarketRegimeEngine:
             reasons=reasons,
             qqq_price=qqq_price,
             vix_price=vix_price,
-            timestamp=datetime.now(),
+            timestamp=now_ny(),
         )

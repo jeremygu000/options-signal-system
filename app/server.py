@@ -6,24 +6,31 @@ Start:
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
+import uuid
+from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import Any, AsyncIterator
+from functools import lru_cache
+from typing import Annotated, AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.data_provider import get_daily, get_intraday
+from app.data_provider import clear_cache as clear_data_cache, get_daily, get_intraday
 from app.indicators import atr, prev_day_high, prev_day_low, rolling_high, rolling_low, session_vwap, sma
 from app.market_regime import MarketRegimeEngine
 from app.models import MarketRegimeResult, Signal, SignalLevel
 from app.strategy_engine import StrategyEngine
+from app.utils import now_ny
 
 logger = logging.getLogger(__name__)
+
+ALLOWED_SYMBOLS: set[str] = {s.upper() for s in [settings.market_index, settings.volatility_index, *settings.symbols]}
 
 
 # ── Response models ──────────────────────────────────────────────────
@@ -32,6 +39,8 @@ logger = logging.getLogger(__name__)
 class HealthResponse(BaseModel):
     status: str
     timestamp: str
+    data_status: dict[str, bool] = Field(default_factory=dict)
+    version: str = "0.1.0"
 
 
 class SymbolInfo(BaseModel):
@@ -71,6 +80,73 @@ class OHLCVBar(BaseModel):
     volume: float
 
 
+class CompareBar(BaseModel):
+    date: str
+    time: int
+    close: float
+
+
+class PaginatedOHLCV(BaseModel):
+    data: list[OHLCVBar]
+    total: int
+    offset: int
+    limit: int
+
+
+class ErrorResponse(BaseModel):
+    detail: str
+    request_id: str
+
+
+# ── Dependencies (DI) ───────────────────────────────────────────────
+
+
+@lru_cache(maxsize=1)
+def get_regime_engine() -> MarketRegimeEngine:
+    return MarketRegimeEngine(
+        qqq_symbol=settings.market_index,
+        vix_symbol=settings.volatility_index,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_strategy_engine() -> StrategyEngine:
+    return StrategyEngine()
+
+
+def validate_symbol(symbol: str) -> str:
+    upper = symbol.upper()
+    if upper not in ALLOWED_SYMBOLS:
+        raise HTTPException(status_code=400, detail=f"Unknown symbol: {symbol}. Allowed: {sorted(ALLOWED_SYMBOLS)}")
+    return upper
+
+
+def validate_days(days: int = Query(default=90, ge=1, le=365)) -> int:
+    return days
+
+
+ValidSymbol = Annotated[str, Depends(validate_symbol)]
+ValidDays = Annotated[int, Depends(validate_days)]
+RegimeEngine = Annotated[MarketRegimeEngine, Depends(get_regime_engine)]
+StratEngine = Annotated[StrategyEngine, Depends(get_strategy_engine)]
+
+
+# ── Rate limiter ─────────────────────────────────────────────────────
+
+_rate_store: dict[str, list[float]] = defaultdict(list)
+
+
+def _check_rate_limit(client_ip: str) -> None:
+    now = time.monotonic()
+    window = 60.0
+    max_requests = settings.rate_limit_per_minute
+    timestamps = _rate_store[client_ip]
+    _rate_store[client_ip] = [t for t in timestamps if now - t < window]
+    if len(_rate_store[client_ip]) >= max_requests:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    _rate_store[client_ip].append(now)
+
+
 # ── App ──────────────────────────────────────────────────────────────
 
 
@@ -79,95 +155,143 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
     logger.info("Signal system API started on port 8300")
     yield
+    get_regime_engine.cache_clear()
+    get_strategy_engine.cache_clear()
+    clear_data_cache()
+    logger.info("Signal system API shutting down")
 
+
+tags_metadata = [
+    {"name": "health", "description": "Health & status checks"},
+    {"name": "market", "description": "Market regime & signal endpoints"},
+    {"name": "data", "description": "OHLCV & indicator data"},
+]
 
 app = FastAPI(
     title="Options Signal System API",
     version="0.1.0",
     lifespan=lifespan,
+    openapi_tags=tags_metadata,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=settings.cors_origins,
+    allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def request_middleware(request: Request, call_next: object) -> Response:
+    request_id = str(uuid.uuid4())[:8]
+    request.state.request_id = request_id
+
+    client_ip = request.client.host if request.client else "unknown"
+    try:
+        _check_rate_limit(client_ip)
+    except HTTPException as exc:
+        return Response(content=exc.detail, status_code=exc.status_code, headers={"X-Request-ID": request_id})
+
+    start = time.monotonic()
+    try:
+        response: Response = await call_next(request)  # type: ignore[operator]
+    except Exception:
+        logger.exception("Unhandled error [%s] %s %s", request_id, request.method, request.url.path)
+        return Response(content="Internal server error", status_code=500, headers={"X-Request-ID": request_id})
+
+    elapsed = time.monotonic() - start
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Response-Time"] = f"{elapsed:.3f}s"
+    logger.info("[%s] %s %s → %d (%.3fs)", request_id, request.method, request.url.path, response.status_code, elapsed)
+    return response
 
 
 # ── Endpoints ────────────────────────────────────────────────────────
 
 
-@app.get("/api/health", response_model=HealthResponse)
-def health() -> HealthResponse:
-    return HealthResponse(status="ok", timestamp=datetime.now().isoformat())
-
-
-@app.get("/api/symbols", response_model=list[SymbolInfo])
-def list_symbols() -> list[SymbolInfo]:
-    """List all configured symbols with data availability."""
+@app.get("/api/v1/health", response_model=HealthResponse, tags=["health"])
+@app.get("/api/health", response_model=HealthResponse, include_in_schema=False)
+async def health() -> HealthResponse:
+    loop = asyncio.get_event_loop()
     all_symbols = [settings.market_index, settings.volatility_index, *settings.symbols]
-    result: list[SymbolInfo] = []
-    for sym in all_symbols:
-        df = get_daily(sym, days=None)
+
+    async def check_symbol(sym: str) -> tuple[str, bool]:
+        df = await loop.run_in_executor(None, get_daily, sym, None)
+        return sym, not df.empty
+
+    results = await asyncio.gather(*(check_symbol(s) for s in all_symbols))
+    data_status = dict(results)
+
+    return HealthResponse(
+        status="ok",
+        timestamp=now_ny().isoformat(),
+        data_status=data_status,
+    )
+
+
+@app.get("/api/v1/symbols", response_model=list[SymbolInfo], tags=["data"])
+@app.get("/api/symbols", response_model=list[SymbolInfo], include_in_schema=False)
+async def list_symbols() -> list[SymbolInfo]:
+    loop = asyncio.get_event_loop()
+    all_symbols = [settings.market_index, settings.volatility_index, *settings.symbols]
+
+    async def fetch_info(sym: str) -> SymbolInfo:
+        df = await loop.run_in_executor(None, get_daily, sym, None)
         last_date = str(df.index[-1].date()) if not df.empty else ""
-        result.append(
-            SymbolInfo(
-                symbol=sym,
-                has_daily=not df.empty,
-                daily_rows=len(df),
-                last_date=last_date,
-            )
-        )
-    return result
+        return SymbolInfo(symbol=sym, has_daily=not df.empty, daily_rows=len(df), last_date=last_date)
+
+    results = await asyncio.gather(*(fetch_info(s) for s in all_symbols))
+    return list(results)
 
 
-@app.get("/api/regime", response_model=MarketRegimeResult)
-def get_regime() -> MarketRegimeResult:
-    """Evaluate current market regime (risk_on / neutral / risk_off)."""
-    engine = MarketRegimeEngine(
-        qqq_symbol=settings.market_index,
-        vix_symbol=settings.volatility_index,
-    )
-    return engine.evaluate()
+@app.get("/api/v1/regime", response_model=MarketRegimeResult, tags=["market"])
+@app.get("/api/regime", response_model=MarketRegimeResult, include_in_schema=False)
+async def get_regime(engine: RegimeEngine) -> MarketRegimeResult:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, engine.evaluate)
 
 
-@app.get("/api/signals", response_model=list[Signal])
-def get_signals() -> list[Signal]:
-    """Evaluate all configured symbols and return signals."""
-    regime_engine = MarketRegimeEngine(
-        qqq_symbol=settings.market_index,
-        vix_symbol=settings.volatility_index,
-    )
-    strategy_engine = StrategyEngine()
-    regime = regime_engine.evaluate()
-    return [strategy_engine.evaluate_symbol(sym, regime) for sym in settings.symbols]
+@app.get("/api/v1/signals", response_model=list[Signal], tags=["market"])
+@app.get("/api/signals", response_model=list[Signal], include_in_schema=False)
+async def get_signals(regime_engine: RegimeEngine, strategy_engine: StratEngine) -> list[Signal]:
+    loop = asyncio.get_event_loop()
+    regime = await loop.run_in_executor(None, regime_engine.evaluate)
+
+    async def eval_sym(sym: str) -> Signal:
+        return await loop.run_in_executor(None, strategy_engine.evaluate_symbol, sym, regime)
+
+    results = await asyncio.gather(*(eval_sym(s) for s in settings.symbols))
+    return list(results)
 
 
-@app.get("/api/scan", response_model=FullScanResponse)
-def full_scan() -> FullScanResponse:
-    """Full scan — regime + all signals in one call."""
-    regime_engine = MarketRegimeEngine(
-        qqq_symbol=settings.market_index,
-        vix_symbol=settings.volatility_index,
-    )
-    strategy_engine = StrategyEngine()
-    regime = regime_engine.evaluate()
-    signals = [strategy_engine.evaluate_symbol(sym, regime) for sym in settings.symbols]
+@app.get("/api/v1/scan", response_model=FullScanResponse, tags=["market"])
+@app.get("/api/scan", response_model=FullScanResponse, include_in_schema=False)
+async def full_scan(regime_engine: RegimeEngine, strategy_engine: StratEngine) -> FullScanResponse:
+    loop = asyncio.get_event_loop()
+    regime = await loop.run_in_executor(None, regime_engine.evaluate)
+
+    async def eval_sym(sym: str) -> Signal:
+        return await loop.run_in_executor(None, strategy_engine.evaluate_symbol, sym, regime)
+
+    signals = await asyncio.gather(*(eval_sym(s) for s in settings.symbols))
     return FullScanResponse(
         regime=regime,
-        signals=signals,
-        timestamp=datetime.now().isoformat(),
+        signals=list(signals),
+        timestamp=now_ny().isoformat(),
     )
 
 
-@app.get("/api/indicators/{symbol}", response_model=IndicatorSnapshot)
-def get_indicators(symbol: str) -> IndicatorSnapshot:
-    """Get current indicator values for a symbol."""
+@app.get("/api/v1/indicators/{symbol}", response_model=IndicatorSnapshot, tags=["data"])
+@app.get("/api/indicators/{symbol}", response_model=IndicatorSnapshot, include_in_schema=False)
+async def get_indicators(symbol: ValidSymbol) -> IndicatorSnapshot:
     import math
 
-    daily = get_daily(symbol, days=60)
-    intraday = get_intraday(symbol)
+    loop = asyncio.get_event_loop()
+    daily, intraday_df = await asyncio.gather(
+        loop.run_in_executor(None, get_daily, symbol, 60),
+        loop.run_in_executor(None, get_intraday, symbol),
+    )
 
     if daily.empty:
         return IndicatorSnapshot(
@@ -204,8 +328,8 @@ def get_indicators(symbol: str) -> IndicatorSnapshot:
     pdl_val = pdl if not math.isnan(pdl) else None
 
     vwap_val: float | None = None
-    if not intraday.empty:
-        vwap_series = session_vwap(intraday)
+    if not intraday_df.empty:
+        vwap_series = session_vwap(intraday_df)
         if not vwap_series.empty:
             v = float(vwap_series.iloc[-1])
             if not math.isnan(v):
@@ -230,51 +354,68 @@ def get_indicators(symbol: str) -> IndicatorSnapshot:
     )
 
 
-@app.get("/api/ohlcv/{symbol}", response_model=list[OHLCVBar])
-def get_ohlcv(symbol: str, days: int = 90) -> list[OHLCVBar]:
-    """Get daily OHLCV bars for a symbol."""
-    df = get_daily(symbol, days=days)
+@app.get("/api/v1/ohlcv/{symbol}", response_model=PaginatedOHLCV, tags=["data"])
+@app.get("/api/ohlcv/{symbol}", response_model=PaginatedOHLCV, include_in_schema=False)
+async def get_ohlcv(
+    symbol: ValidSymbol,
+    days: ValidDays,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=500, ge=1, le=1000),
+) -> PaginatedOHLCV:
+    loop = asyncio.get_event_loop()
+    df = await loop.run_in_executor(None, get_daily, symbol, days)
     if df.empty:
-        return []
+        return PaginatedOHLCV(data=[], total=0, offset=offset, limit=limit)
 
-    timestamps = pd.DatetimeIndex(df.index)
-    result: list[OHLCVBar] = []
-    for i, (_, row) in enumerate(df.iterrows()):
-        dt = timestamps[i]
-        result.append(
-            OHLCVBar(
-                date=str(dt.date()),
-                time=int(dt.timestamp()),
-                open=float(row["Open"]),
-                high=float(row["High"]),
-                low=float(row["Low"]),
-                close=float(row["Close"]),
-                volume=float(row["Volume"]),
-            )
+    total = len(df)
+    df_page = df.iloc[offset : offset + limit]
+    timestamps = pd.DatetimeIndex(df_page.index)
+
+    bars = [
+        OHLCVBar(
+            date=str(timestamps[i].date()),
+            time=int(timestamps[i].timestamp()),
+            open=float(row["Open"]),
+            high=float(row["High"]),
+            low=float(row["Low"]),
+            close=float(row["Close"]),
+            volume=float(row["Volume"]),
         )
-    return result
+        for i, row in enumerate(df_page.to_dict("records"))
+    ]
+    return PaginatedOHLCV(data=bars, total=total, offset=offset, limit=limit)
 
 
-@app.get("/api/compare")
-def compare(tickers: str = "QQQ,USO,XOM", days: int = 90) -> dict[str, list[dict[str, Any]]]:
-    """Get close prices for multiple tickers (for comparison chart)."""
-    symbols = [t.strip() for t in tickers.split(",") if t.strip()]
-    result: dict[str, list[dict[str, Any]]] = {}
+@app.get("/api/v1/compare", response_model=dict[str, list[CompareBar]], tags=["data"])
+@app.get("/api/compare", response_model=dict[str, list[CompareBar]], include_in_schema=False)
+async def compare(
+    tickers: str = Query(default="QQQ,USO,XOM", max_length=200),
+    days: ValidDays = 90,
+) -> dict[str, list[CompareBar]]:
+    symbols = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    if len(symbols) > 10:
+        raise HTTPException(status_code=400, detail="Max 10 tickers allowed")
+
     for sym in symbols:
-        df = get_daily(sym, days=days)
+        if sym not in ALLOWED_SYMBOLS:
+            raise HTTPException(status_code=400, detail=f"Unknown symbol: {sym}. Allowed: {sorted(ALLOWED_SYMBOLS)}")
+
+    loop = asyncio.get_event_loop()
+
+    async def fetch_compare(sym: str) -> tuple[str, list[CompareBar]]:
+        df = await loop.run_in_executor(None, get_daily, sym, days)
         if df.empty:
-            result[sym] = []
-            continue
-        bars: list[dict[str, Any]] = []
+            return sym, []
         timestamps = pd.DatetimeIndex(df.index)
-        for i, (_, row) in enumerate(df.iterrows()):
-            dt = timestamps[i]
-            bars.append(
-                {
-                    "date": str(dt.date()),
-                    "time": int(dt.timestamp()),
-                    "close": float(row["Close"]),
-                }
+        bars = [
+            CompareBar(
+                date=str(timestamps[i].date()),
+                time=int(timestamps[i].timestamp()),
+                close=float(row["Close"]),
             )
-        result[sym] = bars
-    return result
+            for i, row in enumerate(df.to_dict("records"))
+        ]
+        return sym, bars
+
+    results = await asyncio.gather(*(fetch_compare(s) for s in symbols))
+    return dict(results)

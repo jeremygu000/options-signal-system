@@ -1,17 +1,11 @@
-"""CLI entry point — 单次运行或循环轮询。
-
-Usage:
-    python -m app.main                          # 单次运行
-    python -m app.main --loop                   # 循环运行 (默认600秒)
-    python -m app.main --loop --every-seconds 300
-    python -m app.main --always-run             # 忽略交易时段
-"""
+"""CLI entry point — 单次运行或循环轮询。"""
 
 from __future__ import annotations
 
-import argparse
 import logging
 import time
+
+import typer
 
 from app.config import settings
 from app.market_regime import MarketRegimeEngine
@@ -22,6 +16,8 @@ from app.strategy_engine import StrategyEngine
 from app.utils import is_market_open, setup_logging
 
 logger = logging.getLogger(__name__)
+
+cli = typer.Typer(help="期权信号系统")
 
 
 def run_once(always_run: bool = False) -> None:
@@ -52,22 +48,21 @@ def run_once(always_run: bool = False) -> None:
         logger.info("通知已发送至: %s", notifier.channel_name)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="期权信号系统")
-    parser.add_argument("--loop", action="store_true", help="循环运行")
-    parser.add_argument("--every-seconds", type=int, default=None, help="轮询间隔 (秒)")
-    parser.add_argument("--always-run", action="store_true", help="忽略交易时段过滤")
-    args = parser.parse_args()
-
+@cli.command()
+def main(
+    loop: bool = typer.Option(False, help="循环运行"),
+    every_seconds: int | None = typer.Option(None, help="轮询间隔 (秒)"),
+    always_run: bool = typer.Option(False, help="忽略交易时段过滤"),
+) -> None:
     setup_logging()
 
-    interval = args.every_seconds or settings.poll_interval
+    interval = every_seconds or settings.poll_interval
 
-    if args.loop:
+    if loop:
         logger.info("循环模式启动，间隔 %d 秒", interval)
         while True:
             try:
-                run_once(always_run=args.always_run)
+                run_once(always_run=always_run)
             except KeyboardInterrupt:
                 logger.info("用户中断，退出")
                 break
@@ -75,8 +70,8 @@ def main() -> None:
                 logger.exception("运行异常，%d 秒后重试", interval)
             time.sleep(interval)
     else:
-        run_once(always_run=args.always_run)
+        run_once(always_run=always_run)
 
 
 if __name__ == "__main__":
-    main()
+    cli()

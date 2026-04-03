@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -30,10 +30,19 @@ class Settings(BaseSettings):
     # ── Polling ───────────────────────────────────────────────────────
     poll_interval: int = Field(default=600, description="Polling interval in seconds")
 
-    # ── Notifications ────────────────────────────────────────────────
-    telegram_bot_token: str = ""
-    telegram_chat_id: str = ""
-    wechat_webhook_url: str = ""
+    # ── Notifications (secrets) ──────────────────────────────────────
+    telegram_bot_token: SecretStr = SecretStr("")
+    telegram_chat_id: SecretStr = SecretStr("")
+    wechat_webhook_url: SecretStr = SecretStr("")
+
+    # ── CORS ─────────────────────────────────────────────────────────
+    cors_origins: list[str] = Field(
+        default=["http://localhost:3000", "http://localhost:8300"],
+        description="Allowed CORS origins",
+    )
+
+    # ── Rate limiting ────────────────────────────────────────────────
+    rate_limit_per_minute: int = Field(default=60, description="Max requests per minute per IP")
 
     # ── Signal filter ─────────────────────────────────────────────────
     strong_only: bool = Field(
@@ -48,7 +57,7 @@ class Settings(BaseSettings):
 
     @property
     def telegram_enabled(self) -> bool:
-        return bool(self.telegram_bot_token and self.telegram_chat_id)
+        return bool(self.telegram_bot_token.get_secret_value() and self.telegram_chat_id.get_secret_value())
 
 
 # Module-level singleton

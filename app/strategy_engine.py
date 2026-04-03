@@ -23,6 +23,7 @@ from app.indicators import (
     sma,
 )
 from app.models import Bias, MarketRegime, MarketRegimeResult, Signal, SignalLevel
+from app.utils import now_ny
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +162,7 @@ class StrategyEngine:
             trigger_price=trigger_price,
             option_structure=structures["primary"] if level != SignalLevel.NONE else "",
             option_hint=structures["hint_primary"] if level == SignalLevel.STRONG else "",
-            timestamp=datetime.now(),
+            timestamp=now_ny(),
             score=score,
         )
 
@@ -274,7 +275,7 @@ class StrategyEngine:
             trigger_price=trigger_price,
             option_structure=structures["primary"] if level != SignalLevel.NONE else "",
             option_hint=structures["hint_primary"] if level == SignalLevel.STRONG else "",
-            timestamp=datetime.now(),
+            timestamp=now_ny(),
             score=score,
         )
 
@@ -294,5 +295,5 @@ class StrategyEngine:
             level=SignalLevel.NONE,
             action="数据不足，无法评估",
             rationale=["本地无该标的数据"],
-            timestamp=datetime.now(),
+            timestamp=now_ny(),
         )
