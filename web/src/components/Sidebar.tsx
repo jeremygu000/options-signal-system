@@ -18,6 +18,7 @@ import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import ExploreIcon from "@mui/icons-material/Explore";
 import FolderSpecialIcon from "@mui/icons-material/FolderSpecial";
+import BarChartIcon from "@mui/icons-material/BarChart";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -52,6 +53,12 @@ const NAV_ITEMS = [
     label: "持仓管理",
     sublabel: "Positions",
     Icon: FolderSpecialIcon,
+  },
+  {
+    href: "/backtest",
+    label: "信号回测",
+    sublabel: "Backtest",
+    Icon: BarChartIcon,
   },
 ];
 

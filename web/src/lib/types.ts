@@ -384,6 +384,100 @@ export interface TrainingStatusResponse {
   scorer_model_available: boolean;
 }
 
+// ── Signal Backtest types ───────────────────────────────────────────
+
+export interface SignalBacktestRequest {
+  symbol: string;
+  start_date?: string;
+  end_date?: string;
+  horizons?: number[];
+}
+
+export interface SignalOutcome {
+  date: string;
+  signal_level: string;
+  bias: string;
+  score: number;
+  price: number;
+  returns: Record<string, number>;
+  hit: Record<string, boolean>;
+}
+
+export interface HorizonBreakdown {
+  horizon: string;
+  total_signals: number;
+  hits: number;
+  hit_rate: number;
+  avg_return: number;
+  strong_signals: number;
+  strong_hits: number;
+  strong_hit_rate: number;
+  watch_signals: number;
+  watch_hits: number;
+  watch_hit_rate: number;
+}
+
+export interface RegimeBreakdown {
+  regime: string;
+  total_signals: number;
+  hit_rate: number;
+  avg_return: number;
+}
+
+export interface SignalBacktestMetrics {
+  total_days: number;
+  signal_days: number;
+  strong_days: number;
+  watch_days: number;
+  none_days: number;
+  overall_hit_rate: number;
+  avg_return: number;
+  profit_factor: number;
+  max_drawdown: number;
+  sharpe: number;
+  by_horizon: HorizonBreakdown[];
+  by_regime: RegimeBreakdown[];
+}
+
+export interface SignalBacktestResponse {
+  symbol: string;
+  start_date: string;
+  end_date: string;
+  metrics: SignalBacktestMetrics;
+  outcomes: SignalOutcome[];
+  equity_curve: number[];
+  error: string | null;
+  timestamp: string;
+}
+
+export interface WalkForwardRequest {
+  symbol: string;
+  train_days?: number;
+  test_days?: number;
+  step_days?: number;
+  horizon?: number;
+}
+
+export interface WalkForwardWindow {
+  train_start: string;
+  train_end: string;
+  test_start: string;
+  test_end: string;
+  in_sample_hit_rate: number;
+  out_of_sample_hit_rate: number;
+  out_of_sample_return: number;
+}
+
+export interface WalkForwardResponse {
+  symbol: string;
+  windows: WalkForwardWindow[];
+  avg_oos_hit_rate: number;
+  avg_oos_return: number;
+  stability_ratio: number;
+  error: string | null;
+  timestamp: string;
+}
+
 // ── Symbol Discovery types ──────────────────────────────────────────
 
 export interface SymbolMeta {

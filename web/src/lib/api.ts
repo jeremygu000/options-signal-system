@@ -26,6 +26,10 @@ import type {
   TrainingStatusResponse,
   SymbolMeta,
   PaginatedSymbolResult,
+  SignalBacktestRequest,
+  SignalBacktestResponse,
+  WalkForwardRequest,
+  WalkForwardResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8400";
@@ -394,4 +398,24 @@ export function searchSymbols(params?: {
 
 export function fetchSymbolsMetadata(): Promise<SymbolMeta[]> {
   return fetcher<SymbolMeta[]>("/api/v1/symbols/metadata");
+}
+
+export function runSignalBacktest(
+  req: SignalBacktestRequest,
+): Promise<SignalBacktestResponse> {
+  return fetcher<SignalBacktestResponse>("/api/v1/backtest/signals", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
+export function runWalkForward(
+  req: WalkForwardRequest,
+): Promise<WalkForwardResponse> {
+  return fetcher<WalkForwardResponse>("/api/v1/backtest/walk-forward", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
 }
