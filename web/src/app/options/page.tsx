@@ -2606,7 +2606,11 @@ const STRATEGY_TEMPLATES: Record<
   string,
   {
     label: string;
-    legs: { option_type: "c" | "p"; action: "buy" | "sell"; strike_offset: number }[];
+    legs: {
+      option_type: "c" | "p";
+      action: "buy" | "sell";
+      strike_offset: number;
+    }[];
   }
 > = {
   custom: { label: "Custom", legs: [] },
@@ -2776,7 +2780,11 @@ function StrategyBuilderSection() {
   );
 
   const updateLeg = useCallback(
-    (id: string, field: keyof Omit<LegFormState, "id">, value: string | number) => {
+    (
+      id: string,
+      field: keyof Omit<LegFormState, "id">,
+      value: string | number,
+    ) => {
       setLegs((prev) =>
         prev.map((leg) => (leg.id === id ? { ...leg, [field]: value } : leg)),
       );
@@ -2902,7 +2910,10 @@ function StrategyBuilderSection() {
             </Grid>
           </Grid>
 
-          <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5, fontSize: "0.85rem" }}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 700, mb: 1.5, fontSize: "0.85rem" }}
+          >
             期权腿 · Option Legs
           </Typography>
 
@@ -2927,7 +2938,11 @@ function StrategyBuilderSection() {
                   value={leg.option_type}
                   label="类型"
                   onChange={(e) =>
-                    updateLeg(leg.id, "option_type", e.target.value as "c" | "p")
+                    updateLeg(
+                      leg.id,
+                      "option_type",
+                      e.target.value as "c" | "p",
+                    )
                   }
                 >
                   <MenuItem value="c">Call</MenuItem>
@@ -2940,7 +2955,11 @@ function StrategyBuilderSection() {
                   value={leg.action}
                   label="方向"
                   onChange={(e) =>
-                    updateLeg(leg.id, "action", e.target.value as "buy" | "sell")
+                    updateLeg(
+                      leg.id,
+                      "action",
+                      e.target.value as "buy" | "sell",
+                    )
                   }
                 >
                   <MenuItem value="buy">Buy</MenuItem>
@@ -2953,7 +2972,9 @@ function StrategyBuilderSection() {
                 size="small"
                 sx={{ width: 90 }}
                 value={leg.strike}
-                onChange={(e) => updateLeg(leg.id, "strike", Number(e.target.value))}
+                onChange={(e) =>
+                  updateLeg(leg.id, "strike", Number(e.target.value))
+                }
                 slotProps={{ htmlInput: { min: 0.01, step: 1 } }}
               />
               <TextField
@@ -2962,7 +2983,9 @@ function StrategyBuilderSection() {
                 size="small"
                 sx={{ width: 90 }}
                 value={leg.premium}
-                onChange={(e) => updateLeg(leg.id, "premium", Number(e.target.value))}
+                onChange={(e) =>
+                  updateLeg(leg.id, "premium", Number(e.target.value))
+                }
                 slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
               />
               <TextField
@@ -2971,7 +2994,9 @@ function StrategyBuilderSection() {
                 size="small"
                 sx={{ width: 80 }}
                 value={leg.iv}
-                onChange={(e) => updateLeg(leg.id, "iv", Number(e.target.value))}
+                onChange={(e) =>
+                  updateLeg(leg.id, "iv", Number(e.target.value))
+                }
                 slotProps={{ htmlInput: { min: 0.01, max: 5, step: 0.01 } }}
               />
               <TextField
@@ -2980,7 +3005,9 @@ function StrategyBuilderSection() {
                 size="small"
                 sx={{ width: 70 }}
                 value={leg.quantity}
-                onChange={(e) => updateLeg(leg.id, "quantity", Number(e.target.value))}
+                onChange={(e) =>
+                  updateLeg(leg.id, "quantity", Number(e.target.value))
+                }
                 slotProps={{ htmlInput: { min: 1, step: 1 } }}
               />
               <IconButton
@@ -3037,7 +3064,10 @@ function StrategyBuilderSection() {
                   >
                     Net Debit/Credit
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                  >
                     净权利金
                   </Typography>
                   <Typography
@@ -3051,8 +3081,13 @@ function StrategyBuilderSection() {
                   >
                     {fmtMoney(result.net_debit_credit)}
                   </Typography>
-                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                    {result.net_debit_credit < 0 ? "Credit 收权利金" : "Debit 付权利金"}
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                  >
+                    {result.net_debit_credit < 0
+                      ? "Credit 收权利金"
+                      : "Debit 付权利金"}
                   </Typography>
                 </CardContent>
               </Card>
@@ -3066,7 +3101,10 @@ function StrategyBuilderSection() {
                   >
                     Max Profit
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                  >
                     最大盈利
                   </Typography>
                   <Typography
@@ -3094,7 +3132,10 @@ function StrategyBuilderSection() {
                   >
                     Max Loss
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                  >
                     最大亏损
                   </Typography>
                   <Typography
@@ -3122,7 +3163,10 @@ function StrategyBuilderSection() {
                   >
                     Breakevens
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                  >
                     盈亏平衡点
                   </Typography>
                   <Typography
@@ -3168,7 +3212,11 @@ function StrategyBuilderSection() {
                       <CardContent sx={{ pb: "16px !important" }}>
                         <Typography
                           variant="caption"
-                          sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                          sx={{
+                            color: "text.secondary",
+                            display: "block",
+                            mb: 0.5,
+                          }}
                         >
                           {label}
                         </Typography>
@@ -3220,9 +3268,7 @@ function StrategyBuilderSection() {
         </>
       )}
 
-      {result?.error && (
-        <Alert severity="error">{result.error}</Alert>
-      )}
+      {result?.error && <Alert severity="error">{result.error}</Alert>}
     </Box>
   );
 }

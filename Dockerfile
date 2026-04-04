@@ -31,10 +31,10 @@ USER appuser
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-EXPOSE 8300
+EXPOSE 8400
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8300/api/v1/health')"]
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8400/api/v1/health')"]
 
-CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8300"]
+CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8400"]

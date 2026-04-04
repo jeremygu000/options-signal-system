@@ -382,7 +382,7 @@ export default function Sidebar() {
               fontFamily: "var(--font-geist-mono)",
             }}
           >
-            {process.env.NEXT_PUBLIC_API_URL ?? "localhost:8300"}
+            {process.env.NEXT_PUBLIC_API_URL ?? "localhost:8400"}
           </Typography>
           {latencyMs !== null && (
             <Typography

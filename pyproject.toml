@@ -22,6 +22,10 @@ dependencies = [
     "optopsy>=2.3",
     "sqlalchemy[asyncio]>=2.0",
     "aiosqlite>=0.20",
+    "scikit-learn>=1.4",
+    "lightgbm>=4.0",
+    "hmmlearn>=0.3",
+    "joblib>=1.3",
 ]
 
 [build-system]
@@ -50,6 +54,22 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["optopsy.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["hmmlearn.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["lightgbm.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["joblib.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -3,6 +3,7 @@
 import Box from "@mui/material/Box";
 import HeroBanner from "@/components/HeroBanner";
 import RegimeSection from "@/components/RegimeSection";
+import MLSection from "@/components/MLSection";
 import SignalsSection from "@/components/SignalsSection";
 import IndicatorsSection from "@/components/IndicatorsSection";
 import ChartsSection from "@/components/ChartsSection";
@@ -13,6 +14,7 @@ export default function DashboardPage() {
       <HeroBanner />
       <Box sx={{ px: 4, py: 4 }}>
         <RegimeSection />
+        <MLSection />
         <SignalsSection />
         <IndicatorsSection />
         <ChartsSection />

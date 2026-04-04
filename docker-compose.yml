@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8300:8300"
+      - "8400:8400"
     env_file:
       - path: .env
         required: false
@@ -19,7 +19,7 @@ services:
     ports:
       - "3100:3100"
     environment:
-      - NEXT_PUBLIC_API_URL=http://api:8300
+      - NEXT_PUBLIC_API_URL=http://api:8400
     depends_on:
       api:
         condition: service_started

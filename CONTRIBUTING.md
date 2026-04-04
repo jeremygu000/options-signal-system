@@ -14,7 +14,7 @@ Thanks for your interest in contributing! This guide will help you get started.
 
 ```bash
 uv sync
-uv run uvicorn app.server:app --reload --port 8300
+uv run uvicorn app.server:app --reload --port 8400
 ```
 
 ### Frontend
@@ -92,7 +92,7 @@ tests/             pytest test suite
 docker compose up --build
 ```
 
-This starts both the backend (port 8300) and frontend (port 3100).
+This starts both the backend (port 8400) and frontend (port 3100).
 
 ## License
 

@@ -345,3 +345,41 @@ export interface StrategyGroupResponse {
   total_realized_pnl: number;
   positions: PositionResponse[];
 }
+
+// ── ML Enhancement types ────────────────────────────────────────────
+
+export interface EnhancedSignal {
+  symbol: string;
+  bias: Bias;
+  level: SignalLevel;
+  action: string;
+  rationale: string[];
+  price: number;
+  trigger_price: number;
+  option_structure: string;
+  option_hint: string;
+  timestamp: string;
+  score: number;
+  ml_confidence: number;
+  ml_regime: MarketRegime;
+  regime_probabilities: Record<string, number>;
+  feature_importance: Record<string, number>;
+  combined_score: number;
+}
+
+export interface MLRegimeResponse {
+  regime: string;
+  probabilities: Record<string, number>;
+  state: number;
+  source: string;
+}
+
+export interface TrainingStatusResponse {
+  last_trained: string | null;
+  regime_metrics: Record<string, unknown>;
+  scorer_metrics: Record<string, unknown>;
+  symbols_trained: string[];
+  error: string | null;
+  regime_model_available: boolean;
+  scorer_model_available: boolean;
+}

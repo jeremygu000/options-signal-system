@@ -148,7 +148,10 @@ function SummaryCard({
         {sub && !loading && (
           <Typography
             variant="caption"
-            sx={{ color: "text.secondary", fontFamily: "var(--font-geist-mono)" }}
+            sx={{
+              color: "text.secondary",
+              fontFamily: "var(--font-geist-mono)",
+            }}
           >
             {sub}
           </Typography>
@@ -267,7 +270,9 @@ export default function PositionsPage() {
   const [closeError, setCloseError] = useState<string | null>(null);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<PositionResponse | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PositionResponse | null>(
+    null,
+  );
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -285,7 +290,9 @@ export default function PositionsPage() {
     fetchPortfolioSummary()
       .then(setSummary)
       .catch((e: unknown) =>
-        setSummaryError(e instanceof Error ? e.message : "Failed to load summary"),
+        setSummaryError(
+          e instanceof Error ? e.message : "Failed to load summary",
+        ),
       )
       .finally(() => setSummaryLoading(false));
   }, []);
@@ -300,7 +307,9 @@ export default function PositionsPage() {
     fetchPositions(params)
       .then(setPositions)
       .catch((e: unknown) =>
-        setPositionsError(e instanceof Error ? e.message : "Failed to load positions"),
+        setPositionsError(
+          e instanceof Error ? e.message : "Failed to load positions",
+        ),
       )
       .finally(() => setPositionsLoading(false));
   }, [filterStatus, filterSymbol, filterStrategy]);
@@ -356,7 +365,9 @@ export default function PositionsPage() {
         refreshAll();
       })
       .catch((e: unknown) =>
-        setCreateError(e instanceof Error ? e.message : "Failed to create position"),
+        setCreateError(
+          e instanceof Error ? e.message : "Failed to create position",
+        ),
       )
       .finally(() => setCreateLoading(false));
   }
@@ -378,7 +389,9 @@ export default function PositionsPage() {
         refreshAll();
       })
       .catch((e: unknown) =>
-        setCloseError(e instanceof Error ? e.message : "Failed to close position"),
+        setCloseError(
+          e instanceof Error ? e.message : "Failed to close position",
+        ),
       )
       .finally(() => setCloseLoading(false));
   }
@@ -393,7 +406,9 @@ export default function PositionsPage() {
         refreshAll();
       })
       .catch((e: unknown) =>
-        setGlobalError(e instanceof Error ? e.message : "Failed to delete position"),
+        setGlobalError(
+          e instanceof Error ? e.message : "Failed to delete position",
+        ),
       )
       .finally(() => setDeleteLoading(false));
   }
@@ -410,7 +425,9 @@ export default function PositionsPage() {
         refreshAll();
       })
       .catch((e: unknown) =>
-        setEditError(e instanceof Error ? e.message : "Failed to update position"),
+        setEditError(
+          e instanceof Error ? e.message : "Failed to update position",
+        ),
       )
       .finally(() => setEditLoading(false));
   }
@@ -423,7 +440,9 @@ export default function PositionsPage() {
         if (res.marked_expired > 0) refreshAll();
       })
       .catch((e: unknown) =>
-        setGlobalError(e instanceof Error ? e.message : "Failed to mark expired"),
+        setGlobalError(
+          e instanceof Error ? e.message : "Failed to mark expired",
+        ),
       )
       .finally(() => setBatchLoading(false));
   }
@@ -513,7 +532,11 @@ export default function PositionsPage() {
       </Box>
 
       {globalError && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setGlobalError(null)}>
+        <Alert
+          severity="error"
+          sx={{ mb: 2 }}
+          onClose={() => setGlobalError(null)}
+        >
           {globalError}
         </Alert>
       )}
@@ -588,7 +611,12 @@ export default function PositionsPage() {
         />
         <Grid container spacing={2}>
           {(["Delta", "Gamma", "Theta", "Vega", "Rho"] as const).map((g) => {
-            const key = g.toLowerCase() as "delta" | "gamma" | "theta" | "vega" | "rho";
+            const key = g.toLowerCase() as
+              | "delta"
+              | "gamma"
+              | "theta"
+              | "vega"
+              | "rho";
             return (
               <Grid key={g} size={{ xs: 6, sm: 4, md: 2.4 }}>
                 <GreekCard
@@ -636,7 +664,9 @@ export default function PositionsPage() {
                     minWidth: 180,
                   }}
                 >
-                  <CardContent sx={{ pb: "12px !important", pt: "12px !important" }}>
+                  <CardContent
+                    sx={{ pb: "12px !important", pt: "12px !important" }}
+                  >
                     <Box
                       sx={{
                         display: "flex",
@@ -664,8 +694,7 @@ export default function PositionsPage() {
                             pos.option_type === "call"
                               ? "rgba(59,137,255,0.15)"
                               : "rgba(255,113,52,0.15)",
-                          color:
-                            pos.option_type === "call" ? BLUE : RED,
+                          color: pos.option_type === "call" ? BLUE : RED,
                         }}
                       />
                     </Box>
@@ -747,7 +776,12 @@ export default function PositionsPage() {
         {positionsLoading ? (
           <Box>
             {[1, 2, 3, 4].map((n) => (
-              <Skeleton key={n} variant="rounded" height={44} sx={{ mb: 0.5 }} />
+              <Skeleton
+                key={n}
+                variant="rounded"
+                height={44}
+                sx={{ mb: 0.5 }}
+              />
             ))}
           </Box>
         ) : positions.length === 0 ? (
@@ -769,26 +803,40 @@ export default function PositionsPage() {
                   <TableCell sx={{ fontWeight: 700 }}>类型 Type</TableCell>
                   <TableCell
                     align="right"
-                    sx={{ fontWeight: 700, fontFamily: "var(--font-geist-mono)" }}
+                    sx={{
+                      fontWeight: 700,
+                      fontFamily: "var(--font-geist-mono)",
+                    }}
                   >
                     行权价 Strike
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>到期日 Expiration</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>
+                    到期日 Expiration
+                  </TableCell>
                   <TableCell
                     align="right"
-                    sx={{ fontWeight: 700, fontFamily: "var(--font-geist-mono)" }}
+                    sx={{
+                      fontWeight: 700,
+                      fontFamily: "var(--font-geist-mono)",
+                    }}
                   >
                     数量 Qty
                   </TableCell>
                   <TableCell
                     align="right"
-                    sx={{ fontWeight: 700, fontFamily: "var(--font-geist-mono)" }}
+                    sx={{
+                      fontWeight: 700,
+                      fontFamily: "var(--font-geist-mono)",
+                    }}
                   >
                     开仓价 Entry
                   </TableCell>
                   <TableCell
                     align="right"
-                    sx={{ fontWeight: 700, fontFamily: "var(--font-geist-mono)" }}
+                    sx={{
+                      fontWeight: 700,
+                      fontFamily: "var(--font-geist-mono)",
+                    }}
                   >
                     盈亏 P&L
                   </TableCell>
@@ -832,8 +880,7 @@ export default function PositionsPage() {
                               pos.option_type === "call"
                                 ? "rgba(59,137,255,0.12)"
                                 : "rgba(255,113,52,0.12)",
-                            color:
-                              pos.option_type === "call" ? BLUE : RED,
+                            color: pos.option_type === "call" ? BLUE : RED,
                           }}
                         />
                       </TableCell>
@@ -844,7 +891,10 @@ export default function PositionsPage() {
                         ${pos.strike}
                       </TableCell>
                       <TableCell
-                        sx={{ fontFamily: "var(--font-geist-mono)", fontSize: "0.8rem" }}
+                        sx={{
+                          fontFamily: "var(--font-geist-mono)",
+                          fontSize: "0.8rem",
+                        }}
                       >
                         {pos.expiration}
                       </TableCell>
@@ -870,7 +920,8 @@ export default function PositionsPage() {
                           variant="body2"
                           sx={{
                             fontFamily: "var(--font-geist-mono)",
-                            color: pnl != null ? pnlColor(pnl) : "text.secondary",
+                            color:
+                              pnl != null ? pnlColor(pnl) : "text.secondary",
                             fontWeight: pnl != null ? 600 : 400,
                           }}
                         >
@@ -947,7 +998,11 @@ export default function PositionsPage() {
       </Box>
 
       <Box component="section" id="strategy-groups" sx={{ mb: 6 }}>
-        <SectionHeader number="05" title="策略分组" subtitle="Strategy Groups" />
+        <SectionHeader
+          number="05"
+          title="策略分组"
+          subtitle="Strategy Groups"
+        />
         {strategiesLoading ? (
           <Box>
             {[1, 2].map((n) => (
@@ -984,22 +1039,29 @@ export default function PositionsPage() {
                       {group.strategy_name || "未命名策略"}
                     </Typography>
                     <Box sx={{ display: "flex", gap: 1.5 }}>
-                      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.secondary" }}
+                      >
                         持仓{" "}
                         <strong style={{ color: "inherit" }}>
                           {group.position_count}
                         </strong>
                       </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.secondary" }}
+                      >
                         开仓{" "}
-                        <strong style={{ color: GREEN }}>{group.open_count}</strong>
+                        <strong style={{ color: GREEN }}>
+                          {group.open_count}
+                        </strong>
                       </Typography>
                       <Typography
                         variant="caption"
                         sx={{
                           fontFamily: "var(--font-geist-mono)",
-                          color:
-                            group.total_realized_pnl >= 0 ? GREEN : RED,
+                          color: group.total_realized_pnl >= 0 ? GREEN : RED,
                           fontWeight: 700,
                         }}
                       >
@@ -1015,10 +1077,14 @@ export default function PositionsPage() {
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem" }}>
+                          <TableCell
+                            sx={{ fontWeight: 700, fontSize: "0.75rem" }}
+                          >
                             Symbol
                           </TableCell>
-                          <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem" }}>
+                          <TableCell
+                            sx={{ fontWeight: 700, fontSize: "0.75rem" }}
+                          >
                             Type
                           </TableCell>
                           <TableCell
@@ -1027,7 +1093,9 @@ export default function PositionsPage() {
                           >
                             Strike
                           </TableCell>
-                          <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem" }}>
+                          <TableCell
+                            sx={{ fontWeight: 700, fontSize: "0.75rem" }}
+                          >
                             Expiration
                           </TableCell>
                           <TableCell
@@ -1036,7 +1104,9 @@ export default function PositionsPage() {
                           >
                             Qty
                           </TableCell>
-                          <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem" }}>
+                          <TableCell
+                            sx={{ fontWeight: 700, fontSize: "0.75rem" }}
+                          >
                             Status
                           </TableCell>
                           <TableCell
@@ -1355,7 +1425,10 @@ export default function PositionsPage() {
           )}
           {closeTarget && (
             <Box sx={{ mb: 2 }}>
-              <Typography variant="body2" sx={{ color: "text.secondary", mb: 0.5 }}>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary", mb: 0.5 }}
+              >
                 {closeTarget.symbol} {closeTarget.option_type.toUpperCase()} $
                 {closeTarget.strike} · {closeTarget.expiration}
               </Typography>
@@ -1444,7 +1517,9 @@ export default function PositionsPage() {
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)}>取消 Cancel</Button>
+          <Button onClick={() => setDeleteDialogOpen(false)}>
+            取消 Cancel
+          </Button>
           <Button
             variant="contained"
             color="error"

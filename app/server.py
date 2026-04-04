@@ -1,7 +1,7 @@
 """FastAPI server — REST API for the web dashboard.
 
 Start:
-    uvicorn app.server:app --port 8300 --reload
+    uvicorn app.server:app --port 8400 --reload
 """
 
 from __future__ import annotations
@@ -37,11 +37,13 @@ from app.models import (
     BacktestMetrics,
     BacktestRequest,
     BacktestResponse,
+    EnhancedSignal,
     HVPointModel,
     IVAnalysisResponse,
     IVSkewPointModel,
     IVTermPointModel,
     MarketRegimeResult,
+    MLRegimeResponse,
     MultiLegRequest,
     MultiLegResponse,
     OptionsChainDetail,
@@ -56,6 +58,8 @@ from app.models import (
     Signal,
     SignalLevel,
     StrategyGroupResponse,
+    TrainingRequest,
+    TrainingStatusResponse,
 )
 from app.options_data import clear_chain_cache, get_expirations, get_options_chain, get_options_chain_multi
 from app.options_source import get_options_source
@@ -76,6 +80,10 @@ from app.positions import (
     update_position,
 )
 from app.strategy_engine import StrategyEngine
+from app.ml.llm_analyzer import stream_signal_analysis
+from app.ml.pipeline import TrainingStatus, load_status, run_training_pipeline
+from app.ml.regime_classifier import RegimeClassifier
+from app.ml.signal_scorer import SignalScorer
 from app.utils import now_ny
 
 logger = logging.getLogger(__name__)
@@ -182,6 +190,20 @@ def get_strategy_engine() -> StrategyEngine:
     return StrategyEngine()
 
 
+@lru_cache(maxsize=1)
+def get_regime_classifier() -> RegimeClassifier:
+    clf = RegimeClassifier()
+    clf.load()  # silently no-op if no saved model
+    return clf
+
+
+@lru_cache(maxsize=1)
+def get_signal_scorer() -> SignalScorer:
+    scorer = SignalScorer()
+    scorer.load()  # silently no-op if no saved model
+    return scorer
+
+
 def validate_symbol(symbol: str) -> str:
     upper = symbol.upper()
     if upper not in ALLOWED_SYMBOLS:
@@ -197,6 +219,8 @@ ValidSymbol = Annotated[str, Depends(validate_symbol)]
 ValidDays = Annotated[int, Depends(validate_days)]
 RegimeEngine = Annotated[MarketRegimeEngine, Depends(get_regime_engine)]
 StratEngine = Annotated[StrategyEngine, Depends(get_strategy_engine)]
+MLRegime = Annotated[RegimeClassifier, Depends(get_regime_classifier)]
+MLScorer = Annotated[SignalScorer, Depends(get_signal_scorer)]
 
 
 # ── Rate limiter ─────────────────────────────────────────────────────
@@ -222,10 +246,12 @@ def _check_rate_limit(client_ip: str) -> None:
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
     await init_db()
-    logger.info("Signal system API started on port 8300")
+    logger.info("Signal system API started on port 8400")
     yield
     get_regime_engine.cache_clear()
     get_strategy_engine.cache_clear()
+    get_regime_classifier.cache_clear()
+    get_signal_scorer.cache_clear()
     clear_data_cache()
     clear_chain_cache()
     await close_db()
@@ -238,6 +264,7 @@ tags_metadata = [
     {"name": "data", "description": "OHLCV & indicator data"},
     {"name": "options", "description": "Options chain & backtesting"},
     {"name": "positions", "description": "Position management & portfolio"},
+    {"name": "ml", "description": "ML-enhanced signals, regime & training"},
 ]
 
 app = FastAPI(
@@ -1047,3 +1074,180 @@ async def batch_mark_expired() -> dict[str, int]:
     async with get_session() as session:
         count = await mark_expired_positions(session)
         return {"marked_expired": count}
+
+
+# ── ML-enhanced endpoints ────────────────────────────────────────────
+
+
+@app.get("/api/v1/signals/enhanced", response_model=list[EnhancedSignal], tags=["ml"])
+async def get_enhanced_signals(
+    regime_engine: RegimeEngine,
+    strategy_engine: StratEngine,
+    ml_regime: MLRegime,
+    ml_scorer: MLScorer,
+) -> list[EnhancedSignal]:
+    loop = asyncio.get_event_loop()
+    regime = await loop.run_in_executor(None, regime_engine.evaluate)
+
+    async def eval_enhanced(sym: str) -> EnhancedSignal:
+        signal = await loop.run_in_executor(None, strategy_engine.evaluate_symbol, sym, regime)
+        daily = await loop.run_in_executor(None, get_daily, sym, 120)
+
+        ml_confidence = 0.0
+        combined_score = 0.0
+        feature_importance: dict[str, float] = {}
+        ml_regime_label: str = regime.regime.value
+        regime_probs: dict[str, float] = {}
+
+        if ml_regime.is_trained:
+            try:
+                qqq = await loop.run_in_executor(None, get_daily, settings.market_index, 120)
+                vix = await loop.run_in_executor(None, get_daily, settings.volatility_index, 120)
+                pred = await loop.run_in_executor(None, ml_regime.predict, qqq, vix)
+                ml_regime_label = pred.regime
+                regime_probs = pred.probabilities
+            except Exception:
+                logger.warning("ML regime prediction failed for %s, using rule-based", sym)
+
+        if ml_scorer.is_trained and not daily.empty:
+            try:
+                result = await loop.run_in_executor(None, ml_scorer.predict, daily, signal.score)
+                ml_confidence = result.ml_probability
+                combined_score = result.combined_score
+                feature_importance = result.feature_importance
+            except Exception:
+                logger.warning("ML scoring failed for %s", sym)
+
+        return EnhancedSignal(
+            symbol=signal.symbol,
+            bias=signal.bias,
+            level=signal.level.value if isinstance(signal.level, SignalLevel) else signal.level,
+            action=signal.action,
+            rationale=signal.rationale,
+            price=signal.price,
+            trigger_price=signal.trigger_price,
+            option_structure=signal.option_structure,
+            option_hint=signal.option_hint,
+            timestamp=signal.timestamp,
+            score=signal.score,
+            ml_confidence=ml_confidence,
+            ml_regime=ml_regime_label,
+            regime_probabilities=regime_probs,
+            feature_importance=feature_importance,
+            combined_score=combined_score,
+        )
+
+    results = await asyncio.gather(*(eval_enhanced(s) for s in settings.symbols))
+    return list(results)
+
+
+@app.get("/api/v1/ml/regime", response_model=MLRegimeResponse, tags=["ml"])
+async def get_ml_regime(regime_engine: RegimeEngine, ml_regime: MLRegime) -> MLRegimeResponse:
+    loop = asyncio.get_event_loop()
+
+    if not ml_regime.is_trained:
+        rule_regime = await loop.run_in_executor(None, regime_engine.evaluate)
+        return MLRegimeResponse(regime=rule_regime.regime, source="rule_based")
+
+    qqq = await loop.run_in_executor(None, get_daily, settings.market_index, 120)
+    vix = await loop.run_in_executor(None, get_daily, settings.volatility_index, 120)
+    pred = await loop.run_in_executor(None, ml_regime.predict, qqq, vix)
+
+    return MLRegimeResponse(
+        regime=pred.regime,
+        probabilities=pred.probabilities,
+        state=pred.state,
+        source=pred.source,
+    )
+
+
+@app.post("/api/v1/ml/train", response_model=TrainingStatusResponse, tags=["ml"])
+async def trigger_training(req: TrainingRequest) -> TrainingStatusResponse:
+    regime_clf = get_regime_classifier()
+    scorer = get_signal_scorer()
+
+    loop = asyncio.get_event_loop()
+    status: TrainingStatus = await loop.run_in_executor(
+        None, run_training_pipeline, regime_clf, scorer, req.lookback_days
+    )
+
+    return TrainingStatusResponse(
+        last_trained=status.last_trained,
+        regime_metrics=status.regime_metrics,
+        scorer_metrics=status.scorer_metrics,
+        symbols_trained=status.symbols_trained,
+        error=status.error,
+        regime_model_available=regime_clf.is_trained,
+        scorer_model_available=scorer.is_trained,
+    )
+
+
+@app.get("/api/v1/ml/status", response_model=TrainingStatusResponse, tags=["ml"])
+async def get_ml_status(ml_regime: MLRegime, ml_scorer: MLScorer) -> TrainingStatusResponse:
+    loop = asyncio.get_event_loop()
+    status: TrainingStatus = await loop.run_in_executor(None, load_status)
+
+    return TrainingStatusResponse(
+        last_trained=status.last_trained,
+        regime_metrics=status.regime_metrics,
+        scorer_metrics=status.scorer_metrics,
+        symbols_trained=status.symbols_trained,
+        error=status.error,
+        regime_model_available=ml_regime.is_trained,
+        scorer_model_available=ml_scorer.is_trained,
+    )
+
+
+@app.post("/api/v1/ml/analyze/{symbol}", tags=["ml"])
+async def analyze_signal(
+    symbol: ValidSymbol,
+    regime_engine: RegimeEngine,
+    strategy_engine: StratEngine,
+    ml_regime: MLRegime,
+    ml_scorer: MLScorer,
+) -> StreamingResponse:
+    loop = asyncio.get_event_loop()
+    regime = await loop.run_in_executor(None, regime_engine.evaluate)
+    signal = await loop.run_in_executor(None, strategy_engine.evaluate_symbol, symbol, regime)
+    daily = await loop.run_in_executor(None, get_daily, symbol, 120)
+
+    ml_confidence = 0.0
+    ml_regime_label: str = regime.regime.value
+    feature_importance: dict[str, float] = {}
+
+    if ml_regime.is_trained:
+        try:
+            qqq = await loop.run_in_executor(None, get_daily, settings.market_index, 120)
+            vix = await loop.run_in_executor(None, get_daily, settings.volatility_index, 120)
+            pred = await loop.run_in_executor(None, ml_regime.predict, qqq, vix)
+            ml_regime_label = pred.regime
+        except Exception:
+            pass
+
+    if ml_scorer.is_trained and not daily.empty:
+        try:
+            result = await loop.run_in_executor(None, ml_scorer.predict, daily, signal.score)
+            ml_confidence = result.ml_probability
+            feature_importance = result.feature_importance
+        except Exception:
+            pass
+
+    base_signal: dict[str, object] = {
+        "bias": signal.bias,
+        "level": signal.level.value if isinstance(signal.level, SignalLevel) else signal.level,
+        "score": signal.score,
+        "action": signal.action,
+        "option_structure": signal.option_structure,
+    }
+
+    async def generate() -> AsyncIterator[str]:
+        async for chunk in stream_signal_analysis(
+            symbol=symbol,
+            base_signal=base_signal,
+            ml_confidence=ml_confidence,
+            ml_regime=ml_regime_label,
+            feature_importance=feature_importance,
+        ):
+            yield f"data: {chunk}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")

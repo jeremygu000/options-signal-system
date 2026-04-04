@@ -21,9 +21,12 @@ import type {
   PositionResponse,
   PortfolioSummaryResponse,
   StrategyGroupResponse,
+  EnhancedSignal,
+  MLRegimeResponse,
+  TrainingStatusResponse,
 } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8300";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8400";
 
 async function fetcher<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -126,7 +129,9 @@ export function fetchIVAnalysis(symbol: string): Promise<IVAnalysisResponse> {
   return fetcher<IVAnalysisResponse>(`/api/v1/iv/analysis/${symbol}`);
 }
 
-export function analyzeMultiLeg(req: MultiLegRequest): Promise<MultiLegResponse> {
+export function analyzeMultiLeg(
+  req: MultiLegRequest,
+): Promise<MultiLegResponse> {
   return fetcher<MultiLegResponse>("/api/v1/options/multi-leg/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -198,7 +203,9 @@ export async function interpretBacktest(
   onDone();
 }
 
-export function createPosition(data: PositionCreate): Promise<PositionResponse> {
+export function createPosition(
+  data: PositionCreate,
+): Promise<PositionResponse> {
   return fetcher<PositionResponse>("/api/v1/positions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -216,7 +223,9 @@ export function fetchPositions(params?: {
   if (params?.symbol) qs.set("symbol", params.symbol);
   if (params?.strategy) qs.set("strategy", params.strategy);
   const query = qs.toString();
-  return fetcher<PositionResponse[]>(`/api/v1/positions${query ? `?${query}` : ""}`);
+  return fetcher<PositionResponse[]>(
+    `/api/v1/positions${query ? `?${query}` : ""}`,
+  );
 }
 
 export function fetchPosition(id: string): Promise<PositionResponse> {
@@ -264,11 +273,93 @@ export function fetchPortfolioStrategies(): Promise<StrategyGroupResponse[]> {
 }
 
 export function fetchExpiringPositions(days = 7): Promise<PositionResponse[]> {
-  return fetcher<PositionResponse[]>(`/api/v1/positions/alerts/expiring?days=${days}`);
+  return fetcher<PositionResponse[]>(
+    `/api/v1/positions/alerts/expiring?days=${days}`,
+  );
 }
 
 export function batchMarkExpired(): Promise<{ marked_expired: number }> {
-  return fetcher<{ marked_expired: number }>("/api/v1/positions/batch/mark-expired", {
+  return fetcher<{ marked_expired: number }>(
+    "/api/v1/positions/batch/mark-expired",
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function fetchEnhancedSignals(): Promise<EnhancedSignal[]> {
+  return fetcher<EnhancedSignal[]>("/api/v1/signals/enhanced");
+}
+
+export function fetchMLRegime(): Promise<MLRegimeResponse> {
+  return fetcher<MLRegimeResponse>("/api/v1/ml/regime");
+}
+
+export function triggerTraining(
+  lookbackDays = 365,
+): Promise<TrainingStatusResponse> {
+  return fetcher<TrainingStatusResponse>("/api/v1/ml/train", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lookback_days: lookbackDays }),
   });
+}
+
+export function fetchMLStatus(): Promise<TrainingStatusResponse> {
+  return fetcher<TrainingStatusResponse>("/api/v1/ml/status");
+}
+
+export async function analyzeSignal(
+  symbol: string,
+  onToken: (token: string) => void,
+  onError: (error: string) => void,
+  onDone: () => void,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/api/v1/ml/analyze/${symbol}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+
+  if (!res.ok || !res.body) {
+    onError(`API error ${res.status}`);
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  for (;;) {
+    // oxlint-disable-next-line no-await-in-loop -- sequential stream reads are intentional
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const json = line.slice(6);
+      try {
+        const parsed = JSON.parse(json) as {
+          token?: string;
+          done?: boolean;
+          error?: string;
+        };
+        if (parsed.error) {
+          onError(parsed.error);
+          return;
+        }
+        if (parsed.token) onToken(parsed.token);
+        if (parsed.done) {
+          onDone();
+          return;
+        }
+      } catch {
+        /* empty */
+      }
+    }
+  }
+  onDone();
 }

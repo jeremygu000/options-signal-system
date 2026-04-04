@@ -303,3 +303,46 @@ class StrategyGroupResponse(BaseModel):
     open_count: int
     total_realized_pnl: float
     positions: list[PositionResponse] = Field(default_factory=list)
+
+
+# ── ML enhancement models ────────────────────────────────────────────
+
+
+class EnhancedSignal(BaseModel):
+    symbol: str
+    bias: str
+    level: str
+    action: str = ""
+    rationale: list[str] = Field(default_factory=list)
+    price: float = 0.0
+    trigger_price: float = 0.0
+    option_structure: str = ""
+    option_hint: str = ""
+    timestamp: datetime = Field(default_factory=now_ny)
+    score: int = 0
+    ml_confidence: float = 0.0
+    ml_regime: str = "neutral"
+    regime_probabilities: dict[str, float] = Field(default_factory=dict)
+    feature_importance: dict[str, float] = Field(default_factory=dict)
+    combined_score: float = 0.0
+
+
+class MLRegimeResponse(BaseModel):
+    regime: str
+    probabilities: dict[str, float] = Field(default_factory=dict)
+    state: int = 0
+    source: str = "rule_based"
+
+
+class TrainingRequest(BaseModel):
+    lookback_days: int = Field(default=365, ge=100, le=1825)
+
+
+class TrainingStatusResponse(BaseModel):
+    last_trained: str | None = None
+    regime_metrics: dict[str, object] = Field(default_factory=dict)
+    scorer_metrics: dict[str, object] = Field(default_factory=dict)
+    symbols_trained: list[str] = Field(default_factory=list)
+    error: str | None = None
+    regime_model_available: bool = False
+    scorer_model_available: bool = False
