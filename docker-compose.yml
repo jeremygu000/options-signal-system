@@ -9,8 +9,14 @@ services:
       - path: .env
         required: false
     volumes:
-      - ./data:/app/data:ro
+      - ${HOME}/.market_data/parquet:/app/data:ro
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8400/api/v1/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
   web:
     build:
@@ -22,5 +28,5 @@ services:
       - NEXT_PUBLIC_API_URL=http://api:8400
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped

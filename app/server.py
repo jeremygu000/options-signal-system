@@ -327,13 +327,27 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     log_json = os.getenv("LOG_FORMAT", "console").lower() == "json"
     setup_logging(json_format=log_json)
+
+    if settings.api_auth_enabled and not settings.api_keys:
+        logger.error("API_AUTH_ENABLED=true but no API_KEYS configured — all protected routes will return 503")
+    if not settings.parquet_dir.exists():
+        logger.warning("Parquet data directory does not exist: %s", settings.parquet_dir)
+
     await init_db()
     broadcaster.register("signals", _ws_signals_provider)
     broadcaster.register("regime", _ws_regime_provider)
     broadcaster.register("broker", _ws_broker_provider)
     broadcaster.register("health", _ws_health_provider)
     await broadcaster.start()
-    logger.info("Signal system API started on port 8400")
+    logger.info(
+        "Signal system API started",
+        extra={
+            "port": 8400,
+            "auth_enabled": settings.api_auth_enabled,
+            "symbols": len(settings.symbols),
+            "log_format": "json" if log_json else "console",
+        },
+    )
     yield
     await broadcaster.stop()
     get_regime_engine.cache_clear()
