@@ -72,6 +72,13 @@ from app.models import (
     SignalBacktestResponse,
     WalkForwardRequest,
     WalkForwardResponse,
+    CreateOrderRequest,
+    OrderResponse,
+    AccountInfoResponse,
+    BrokerPositionResponse,
+    ClosePositionRequest as BrokerClosePositionRequest,
+    PortfolioHistoryRequest,
+    PortfolioHistoryResponse,
 )
 from app.options_data import clear_chain_cache, get_expirations, get_options_chain, get_options_chain_multi
 from app.options_source import get_options_source
@@ -92,6 +99,7 @@ from app.positions import (
     update_position,
 )
 from app.signal_backtest import run_signal_backtest, run_walk_forward
+from app.broker import AlpacaBroker, get_broker
 from app.strategy_engine import StrategyEngine
 from app.symbol_discovery import build_metadata_index, clear_discovery_cache, search_symbols
 from app.ml.llm_analyzer import stream_signal_analysis
@@ -282,6 +290,7 @@ tags_metadata = [
     {"name": "positions", "description": "Position management & portfolio"},
     {"name": "ml", "description": "ML-enhanced signals, regime & training"},
     {"name": "discovery", "description": "Symbol discovery & metadata"},
+    {"name": "broker", "description": "Alpaca broker integration — account, orders, positions, portfolio"},
 ]
 
 app = FastAPI(
@@ -1364,3 +1373,85 @@ async def get_all_metadata() -> list[SymbolMetaResponse]:
         )
         for m in index
     ]
+
+
+# ── Broker / Trading ─────────────────────────────────────────────────
+
+BrokerDep = Annotated[AlpacaBroker, Depends(get_broker)]
+
+
+@app.get("/api/v1/broker/account", response_model=AccountInfoResponse, tags=["broker"])
+async def broker_account(broker: BrokerDep) -> AccountInfoResponse:
+    return await asyncio.to_thread(broker.get_account)
+
+
+@app.post("/api/v1/broker/orders", response_model=OrderResponse, tags=["broker"])
+async def broker_submit_order(req: CreateOrderRequest, broker: BrokerDep) -> OrderResponse:
+    try:
+        return await asyncio.to_thread(broker.submit_order, req)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Alpaca API error: {exc}") from exc
+
+
+@app.get("/api/v1/broker/orders", response_model=list[OrderResponse], tags=["broker"])
+async def broker_list_orders(
+    broker: BrokerDep,
+    status: str = Query(default="open", pattern="^(open|closed|all)$"),
+    limit: int = Query(default=50, ge=1, le=500),
+    symbols: str | None = Query(default=None, description="Comma-separated symbols"),
+) -> list[OrderResponse]:
+    sym_list = [s.strip().upper() for s in symbols.split(",")] if symbols else None
+    return await asyncio.to_thread(broker.get_orders, status, limit, sym_list)
+
+
+@app.delete("/api/v1/broker/orders/{order_id}", tags=["broker"])
+async def broker_cancel_order(order_id: str, broker: BrokerDep) -> dict[str, str]:
+    try:
+        await asyncio.to_thread(broker.cancel_order, order_id)
+        return {"status": "cancelled", "order_id": order_id}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Alpaca API error: {exc}") from exc
+
+
+@app.delete("/api/v1/broker/orders", tags=["broker"])
+async def broker_cancel_all_orders(broker: BrokerDep) -> dict[str, int]:
+    count = await asyncio.to_thread(broker.cancel_all_orders)
+    return {"cancelled": count}
+
+
+@app.get("/api/v1/broker/positions", response_model=list[BrokerPositionResponse], tags=["broker"])
+async def broker_list_positions(broker: BrokerDep) -> list[BrokerPositionResponse]:
+    return await asyncio.to_thread(broker.get_positions)
+
+
+@app.get("/api/v1/broker/positions/{symbol}", response_model=BrokerPositionResponse, tags=["broker"])
+async def broker_get_position(symbol: str, broker: BrokerDep) -> BrokerPositionResponse:
+    try:
+        return await asyncio.to_thread(broker.get_position, symbol)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=f"No position for {symbol}: {exc}") from exc
+
+
+@app.delete("/api/v1/broker/positions/{symbol}", response_model=OrderResponse, tags=["broker"])
+async def broker_close_position(
+    symbol: str,
+    broker: BrokerDep,
+    req: BrokerClosePositionRequest | None = None,
+) -> OrderResponse:
+    try:
+        return await asyncio.to_thread(broker.close_position, symbol, req)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to close {symbol}: {exc}") from exc
+
+
+@app.delete("/api/v1/broker/positions", tags=["broker"])
+async def broker_close_all_positions(broker: BrokerDep) -> dict[str, int]:
+    count = await asyncio.to_thread(broker.close_all_positions)
+    return {"closed": count}
+
+
+@app.post("/api/v1/broker/portfolio/history", response_model=PortfolioHistoryResponse, tags=["broker"])
+async def broker_portfolio_history(req: PortfolioHistoryRequest, broker: BrokerDep) -> PortfolioHistoryResponse:
+    return await asyncio.to_thread(broker.get_portfolio_history, req)

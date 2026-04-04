@@ -463,3 +463,119 @@ class WalkForwardResponse(BaseModel):
     stability_ratio: float = Field(default=0.0, description="OOS hit rate / IS hit rate — closer to 1.0 is better")
     error: str | None = None
     timestamp: datetime = Field(default_factory=now_ny)
+
+
+# ── Broker / trading models ──────────────────────────────────────────
+
+
+class OrderSideEnum(str, Enum):
+    BUY = "buy"
+    SELL = "sell"
+
+
+class OrderTypeEnum(str, Enum):
+    MARKET = "market"
+    LIMIT = "limit"
+    STOP = "stop"
+    STOP_LIMIT = "stop_limit"
+
+
+class TimeInForceEnum(str, Enum):
+    DAY = "day"
+    GTC = "gtc"
+    IOC = "ioc"
+    FOK = "fok"
+
+
+class OrderStatusEnum(str, Enum):
+    NEW = "new"
+    ACCEPTED = "accepted"
+    PARTIALLY_FILLED = "partially_filled"
+    FILLED = "filled"
+    DONE_FOR_DAY = "done_for_day"
+    CANCELED = "canceled"
+    EXPIRED = "expired"
+    REPLACED = "replaced"
+    REJECTED = "rejected"
+    PENDING_NEW = "pending_new"
+    PENDING_CANCEL = "pending_cancel"
+    PENDING_REPLACE = "pending_replace"
+
+
+class CreateOrderRequest(BaseModel):
+    symbol: str = Field(min_length=1, max_length=10)
+    side: OrderSideEnum
+    order_type: OrderTypeEnum = OrderTypeEnum.MARKET
+    time_in_force: TimeInForceEnum = TimeInForceEnum.DAY
+    qty: float | None = Field(default=None, gt=0, description="Number of shares (mutually exclusive with notional)")
+    notional: float | None = Field(default=None, gt=0, description="Dollar amount (mutually exclusive with qty)")
+    limit_price: float | None = Field(default=None, gt=0)
+    stop_price: float | None = Field(default=None, gt=0)
+
+
+class OrderResponse(BaseModel):
+    id: str
+    symbol: str
+    side: str
+    order_type: str
+    time_in_force: str
+    qty: str | None = None
+    notional: str | None = None
+    limit_price: str | None = None
+    stop_price: str | None = None
+    filled_qty: str | None = None
+    filled_avg_price: str | None = None
+    status: str
+    created_at: str | None = None
+    updated_at: str | None = None
+    submitted_at: str | None = None
+    filled_at: str | None = None
+    expired_at: str | None = None
+    canceled_at: str | None = None
+
+
+class AccountInfoResponse(BaseModel):
+    id: str
+    status: str
+    cash: float
+    equity: float
+    portfolio_value: float
+    buying_power: float
+    long_market_value: float
+    short_market_value: float
+    pattern_day_trader: bool
+    trading_blocked: bool
+    transfers_blocked: bool
+    currency: str = "USD"
+
+
+class BrokerPositionResponse(BaseModel):
+    symbol: str
+    qty: str
+    side: str
+    market_value: str | None = None
+    avg_entry_price: str | None = None
+    current_price: str | None = None
+    unrealized_pl: str | None = None
+    unrealized_plpc: str | None = None
+    cost_basis: str | None = None
+    change_today: str | None = None
+
+
+class ClosePositionRequest(BaseModel):
+    qty: float | None = Field(default=None, gt=0, description="Shares to close (default: close all)")
+    percentage: float | None = Field(default=None, gt=0, le=100, description="Percentage to close (default: close all)")
+
+
+class PortfolioHistoryRequest(BaseModel):
+    period: str = Field(default="1M", pattern=r"^(1D|1W|1M|3M|6M|1A|2A|all)$")
+    timeframe: str = Field(default="1D", pattern=r"^(1Min|5Min|15Min|1H|1D)$")
+    extended_hours: bool = False
+
+
+class PortfolioHistoryResponse(BaseModel):
+    timestamp: list[int] = Field(default_factory=list)
+    equity: list[float] = Field(default_factory=list)
+    profit_loss: list[float] = Field(default_factory=list)
+    profit_loss_pct: list[float] = Field(default_factory=list)
+    base_value: float = 0.0

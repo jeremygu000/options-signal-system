@@ -478,6 +478,104 @@ export interface WalkForwardResponse {
   timestamp: string;
 }
 
+// ── Broker / Trading types ──────────────────────────────────────────
+
+export type OrderSide = "buy" | "sell";
+export type OrderType = "market" | "limit" | "stop" | "stop_limit";
+export type TimeInForce = "day" | "gtc" | "ioc" | "fok";
+export type OrderStatus =
+  | "new"
+  | "accepted"
+  | "partially_filled"
+  | "filled"
+  | "done_for_day"
+  | "canceled"
+  | "expired"
+  | "replaced"
+  | "rejected"
+  | "pending_new"
+  | "pending_cancel"
+  | "pending_replace";
+
+export interface CreateOrderRequest {
+  symbol: string;
+  side: OrderSide;
+  order_type: OrderType;
+  time_in_force: TimeInForce;
+  qty: number | null;
+  notional: number | null;
+  limit_price: number | null;
+  stop_price: number | null;
+}
+
+export interface OrderResponse {
+  id: string;
+  symbol: string;
+  side: string;
+  order_type: string;
+  time_in_force: string;
+  qty: string | null;
+  notional: string | null;
+  limit_price: string | null;
+  stop_price: string | null;
+  filled_qty: string | null;
+  filled_avg_price: string | null;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+  submitted_at: string | null;
+  filled_at: string | null;
+  expired_at: string | null;
+  canceled_at: string | null;
+}
+
+export interface AccountInfoResponse {
+  id: string;
+  status: string;
+  cash: number;
+  equity: number;
+  portfolio_value: number;
+  buying_power: number;
+  long_market_value: number;
+  short_market_value: number;
+  pattern_day_trader: boolean;
+  trading_blocked: boolean;
+  transfers_blocked: boolean;
+  currency: string;
+}
+
+export interface BrokerPositionResponse {
+  symbol: string;
+  qty: string;
+  side: string;
+  market_value: string | null;
+  avg_entry_price: string | null;
+  current_price: string | null;
+  unrealized_pl: string | null;
+  unrealized_plpc: string | null;
+  cost_basis: string | null;
+  change_today: string | null;
+}
+
+export interface ClosePositionRequest {
+  qty: number | null;
+  percentage: number | null;
+}
+
+export interface PortfolioHistoryRequest {
+  period: string;
+  timeframe: string;
+  extended_hours: boolean;
+}
+
+export interface PortfolioHistoryResponse {
+  timestamp: number[];
+  equity: number[];
+  profit_loss: number[];
+  profit_loss_pct: number[];
+  base_value: number;
+}
+
 // ── Symbol Discovery types ──────────────────────────────────────────
 
 export interface SymbolMeta {

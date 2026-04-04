@@ -30,6 +30,13 @@ import type {
   SignalBacktestResponse,
   WalkForwardRequest,
   WalkForwardResponse,
+  CreateOrderRequest,
+  OrderResponse,
+  AccountInfoResponse,
+  BrokerPositionResponse,
+  ClosePositionRequest,
+  PortfolioHistoryRequest,
+  PortfolioHistoryResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8400";
@@ -414,6 +421,84 @@ export function runWalkForward(
   req: WalkForwardRequest,
 ): Promise<WalkForwardResponse> {
   return fetcher<WalkForwardResponse>("/api/v1/backtest/walk-forward", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
+export function fetchBrokerAccount(): Promise<AccountInfoResponse> {
+  return fetcher<AccountInfoResponse>("/api/v1/broker/account");
+}
+
+export function submitOrder(req: CreateOrderRequest): Promise<OrderResponse> {
+  return fetcher<OrderResponse>("/api/v1/broker/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
+export function fetchBrokerOrders(params?: {
+  status?: string;
+  limit?: number;
+  symbols?: string;
+}): Promise<OrderResponse[]> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.limit != null) qs.set("limit", String(params.limit));
+  if (params?.symbols) qs.set("symbols", params.symbols);
+  const q = qs.toString();
+  return fetcher<OrderResponse[]>(`/api/v1/broker/orders${q ? `?${q}` : ""}`);
+}
+
+export async function cancelOrder(orderId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/v1/broker/orders/${orderId}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: cancel order ${orderId}`);
+  }
+}
+
+export async function cancelAllOrders(): Promise<{ cancelled: number }> {
+  return fetcher<{ cancelled: number }>("/api/v1/broker/orders", {
+    method: "DELETE",
+  });
+}
+
+export function fetchBrokerPositions(): Promise<BrokerPositionResponse[]> {
+  return fetcher<BrokerPositionResponse[]>("/api/v1/broker/positions");
+}
+
+export function fetchBrokerPosition(
+  symbol: string,
+): Promise<BrokerPositionResponse> {
+  return fetcher<BrokerPositionResponse>(`/api/v1/broker/positions/${symbol}`);
+}
+
+export async function closeBrokerPosition(
+  symbol: string,
+  req?: ClosePositionRequest,
+): Promise<OrderResponse> {
+  return fetcher<OrderResponse>(`/api/v1/broker/positions/${symbol}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: req ? JSON.stringify(req) : undefined,
+  });
+}
+
+export async function closeAllBrokerPositions(): Promise<{ closed: number }> {
+  return fetcher<{ closed: number }>("/api/v1/broker/positions", {
+    method: "DELETE",
+  });
+}
+
+export function fetchPortfolioHistory(
+  req: PortfolioHistoryRequest,
+): Promise<PortfolioHistoryResponse> {
+  return fetcher<PortfolioHistoryResponse>("/api/v1/broker/portfolio/history", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),

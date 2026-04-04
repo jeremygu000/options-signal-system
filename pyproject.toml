@@ -27,6 +27,7 @@ dependencies = [
     "hmmlearn>=0.3",
     "joblib>=1.3",
     "duckdb>=1.2",
+    "alpaca-py>=0.35",
 ]
 
 [build-system]
@@ -75,6 +76,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["duckdb.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["alpaca.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
