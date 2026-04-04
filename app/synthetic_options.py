@@ -138,7 +138,12 @@ def generate_synthetic_chain(
         ref_price = float(closes_arr[min(first_active_idx, len(dates) - 1)])
         exp_strike_map[exp] = _strike_grid(ref_price, num_strikes)
 
-    all_frames: list[pd.DataFrame] = []
+    rows_S: list[np.ndarray] = []
+    rows_K: list[np.ndarray] = []
+    rows_T: list[np.ndarray] = []
+    rows_sigma: list[np.ndarray] = []
+    rows_exp: list[np.ndarray] = []
+    rows_qdate: list[np.ndarray] = []
 
     for date_idx in range(len(dates)):
         quote_date = dates[date_idx]
@@ -155,41 +160,57 @@ def generate_synthetic_chain(
             if strikes is None or len(strikes) == 0:
                 continue
 
+            n = len(strikes)
             dte_days = (expiration - quote_date).days
             T = dte_days / 365.0
 
-            n = len(strikes)
-            S_arr = np.full(n, S)
-            T_arr = np.full(n, T)
-            sigma_arr = np.full(n, sigma_date)
+            rows_S.append(np.full(n, S))
+            rows_K.append(strikes)
+            rows_T.append(np.full(n, T))
+            rows_sigma.append(np.full(n, sigma_date))
+            rows_exp.append(np.full(n, expiration.value, dtype="datetime64[ns]"))
+            rows_qdate.append(np.full(n, quote_date.value, dtype="datetime64[ns]"))
 
-            for opt_type in ("c", "p"):
-                mid, delta_arr, gamma_arr, theta_arr, vega_arr, _rho_arr = bs_price_and_greeks(
-                    S_arr, strikes, T_arr, risk_free_rate, sigma_arr, opt_type
-                )
+    if not rows_S:
+        logger.warning("%s: no synthetic options generated (empty chain)", symbol)
+        return pd.DataFrame()
 
-                keep = mid >= MIN_OPTION_MID
-                if not keep.any():
-                    continue
+    all_S = np.concatenate(rows_S)
+    all_K = np.concatenate(rows_K)
+    all_T = np.concatenate(rows_T)
+    all_sigma = np.concatenate(rows_sigma)
+    all_exp = np.concatenate(rows_exp)
+    all_qdate = np.concatenate(rows_qdate)
 
-                frame = pd.DataFrame(
-                    {
-                        "underlying_symbol": symbol.upper(),
-                        "option_type": opt_type,
-                        "expiration": expiration,
-                        "quote_date": quote_date,
-                        "strike": strikes[keep],
-                        "bid": mid[keep] * (1.0 - BID_ASK_SPREAD),
-                        "ask": mid[keep] * (1.0 + BID_ASK_SPREAD),
-                        "delta": delta_arr[keep],
-                        "gamma": gamma_arr[keep],
-                        "theta": theta_arr[keep],
-                        "vega": vega_arr[keep],
-                        "implied_volatility": sigma_date,
-                        "underlying_price": S,
-                    }
-                )
-                all_frames.append(frame)
+    all_frames: list[pd.DataFrame] = []
+
+    for opt_type in ("c", "p"):
+        mid, delta_arr, gamma_arr, theta_arr, vega_arr, _rho_arr = bs_price_and_greeks(
+            all_S, all_K, all_T, risk_free_rate, all_sigma, opt_type
+        )
+
+        keep = mid >= MIN_OPTION_MID
+        if not keep.any():
+            continue
+
+        frame = pd.DataFrame(
+            {
+                "underlying_symbol": symbol.upper(),
+                "option_type": opt_type,
+                "expiration": all_exp[keep],
+                "quote_date": all_qdate[keep],
+                "strike": all_K[keep],
+                "bid": mid[keep] * (1.0 - BID_ASK_SPREAD),
+                "ask": mid[keep] * (1.0 + BID_ASK_SPREAD),
+                "delta": delta_arr[keep],
+                "gamma": gamma_arr[keep],
+                "theta": theta_arr[keep],
+                "vega": vega_arr[keep],
+                "implied_volatility": all_sigma[keep],
+                "underlying_price": all_S[keep],
+            }
+        )
+        all_frames.append(frame)
 
     if not all_frames:
         logger.warning("%s: no synthetic options generated (empty chain)", symbol)

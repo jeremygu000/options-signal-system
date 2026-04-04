@@ -242,53 +242,47 @@ def _extract_skew(
     if calls.empty and puts.empty:
         return 0.0, [], 0.0
 
-    skew_points: list[IVSkewPoint] = []
-    atm_call_iv = 0.0
-    atm_put_iv = 0.0
-    best_call_dist = float("inf")
-    best_put_dist = float("inf")
-
     # Filter to strikes within ±30% of spot for cleaner skew
     low_bound = spot * 0.70
     high_bound = spot * 1.30
 
-    for _, row in calls.iterrows():
-        strike = float(row["strike"])
-        iv = float(row.get("impliedVolatility", 0) or 0)
-        if iv <= 0 or strike < low_bound or strike > high_bound:
-            continue
-        moneyness = strike / spot
-        skew_points.append(
-            IVSkewPoint(
-                strike=round(strike, 2),
-                implied_volatility=round(iv, 6),
-                option_type="c",
-                moneyness=round(moneyness, 4),
-            )
-        )
-        dist = abs(strike - spot)
-        if dist < best_call_dist:
-            best_call_dist = dist
-            atm_call_iv = iv
+    skew_points: list[IVSkewPoint] = []
+    atm_call_iv = 0.0
+    atm_put_iv = 0.0
 
-    for _, row in puts.iterrows():
-        strike = float(row["strike"])
-        iv = float(row.get("impliedVolatility", 0) or 0)
-        if iv <= 0 or strike < low_bound or strike > high_bound:
+    for opt_type, df in (("c", calls), ("p", puts)):
+        if df.empty:
             continue
-        moneyness = strike / spot
-        skew_points.append(
+
+        strikes = df["strike"].to_numpy(dtype=np.float64)
+        ivs = df["impliedVolatility"].fillna(0).to_numpy(dtype=np.float64)
+
+        mask = (ivs > 0) & (strikes >= low_bound) & (strikes <= high_bound)
+        if not mask.any():
+            continue
+
+        filt_strikes = strikes[mask]
+        filt_ivs = ivs[mask]
+        filt_moneyness = filt_strikes / spot
+
+        skew_points.extend(
             IVSkewPoint(
-                strike=round(strike, 2),
-                implied_volatility=round(iv, 6),
-                option_type="p",
-                moneyness=round(moneyness, 4),
+                strike=round(float(s), 2),
+                implied_volatility=round(float(v), 6),
+                option_type=opt_type,
+                moneyness=round(float(m), 4),
             )
+            for s, v, m in zip(filt_strikes, filt_ivs, filt_moneyness)
         )
-        dist = abs(strike - spot)
-        if dist < best_put_dist:
-            best_put_dist = dist
-            atm_put_iv = iv
+
+        dists = np.abs(filt_strikes - spot)
+        atm_idx = int(np.argmin(dists))
+        atm_iv_val = float(filt_ivs[atm_idx])
+
+        if opt_type == "c":
+            atm_call_iv = atm_iv_val
+        else:
+            atm_put_iv = atm_iv_val
 
     # ATM IV is average of nearest call and put IVs
     if atm_call_iv > 0 and atm_put_iv > 0:
