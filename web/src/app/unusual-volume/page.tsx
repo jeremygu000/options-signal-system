@@ -952,7 +952,7 @@ export default function UnusualVolumePage() {
   }, []);
 
   return (
-    <Box sx={{ maxWidth: 1100, mx: "auto" }}>
+    <Box sx={{ px: 4, py: 3, maxWidth: 1100, mx: "auto" }}>
       <Box sx={{ mb: 3 }}>
         <Typography
           variant="h5"
