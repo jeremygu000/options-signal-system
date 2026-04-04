@@ -127,7 +127,7 @@
 | Code Structure | 5/5 | 5/5 |
 | API Security | 5/5 | 5/5 |
 | Test Coverage | 5/5 | 5/5 |
-| Observability | 4/5 | 5/5 |
+| Observability | 5/5 | 5/5 |
 | Performance | 5/5 | 5/5 |
 | Deployment Readiness | 4/5 | 5/5 |
 | **Signal Intelligence** | **5/5** | **5/5** |

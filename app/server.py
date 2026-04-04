@@ -24,6 +24,8 @@ from pydantic import BaseModel, Field
 
 from app.backtester import BacktestConfig, StrategyType, run_backtest, run_multi_strategy_backtest
 from app.config import settings
+from app.logging_config import setup_logging
+from app.metrics import metrics
 from app.security import ApiKey, check_rate_limit_ip
 from app.data_provider import (
     clear_cache as clear_data_cache,
@@ -139,6 +141,8 @@ class HealthResponse(BaseModel):
     timestamp: str
     data_status: dict[str, bool] = Field(default_factory=dict)
     version: str = "0.1.0"
+    uptime_seconds: float | None = None
+    db_ok: bool | None = None
 
 
 class SymbolInfo(BaseModel):
@@ -319,7 +323,10 @@ async def _ws_health_provider() -> dict[str, Any]:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+    import os
+
+    log_json = os.getenv("LOG_FORMAT", "console").lower() == "json"
+    setup_logging(json_format=log_json)
     await init_db()
     broadcaster.register("signals", _ws_signals_provider)
     broadcaster.register("regime", _ws_regime_provider)
@@ -386,8 +393,10 @@ async def request_middleware(request: Request, call_next: object) -> Response:
         return Response(content="Internal server error", status_code=500, headers={"X-Request-ID": request_id})
 
     elapsed = time.monotonic() - start
+    elapsed_ms = elapsed * 1000
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Response-Time"] = f"{elapsed:.3f}s"
+    metrics.record(request.url.path, response.status_code, elapsed_ms)
     logger.info("[%s] %s %s → %d (%.3fs)", request_id, request.method, request.url.path, response.status_code, elapsed)
     return response
 
@@ -408,11 +417,29 @@ async def health() -> HealthResponse:
     results = await asyncio.gather(*(check_symbol(s) for s in all_symbols))
     data_status = dict(results)
 
+    db_ok = True
+    try:
+        async with get_session() as session:
+            from sqlalchemy import text
+
+            await session.execute(text("SELECT 1"))
+    except Exception:
+        db_ok = False
+
+    snap = metrics.snapshot()
+
     return HealthResponse(
-        status="ok",
+        status="ok" if db_ok else "degraded",
         timestamp=now_ny().isoformat(),
         data_status=data_status,
+        uptime_seconds=snap["uptime_seconds"],  # type: ignore[arg-type]
+        db_ok=db_ok,
     )
+
+
+@app.get("/api/v1/metrics", tags=["health"])
+async def get_metrics(_api_key: ApiKey) -> dict[str, object]:
+    return metrics.snapshot()
 
 
 @app.get("/api/v1/symbols", response_model=list[SymbolInfo], tags=["data"])

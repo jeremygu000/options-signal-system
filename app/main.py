@@ -8,12 +8,13 @@ import time
 import typer
 
 from app.config import settings
+from app.logging_config import setup_logging
 from app.market_regime import MarketRegimeEngine
 from app.models import SignalLevel
 from app.notifier import create_notifier
 from app.report import build_report, build_telegram_message
 from app.strategy_engine import StrategyEngine
-from app.utils import is_market_open, setup_logging
+from app.utils import is_market_open
 
 logger = logging.getLogger(__name__)
 

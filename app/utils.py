@@ -1,62 +1,13 @@
-"""Utility helpers — trading hours, timezone, logging setup."""
+"""Utility helpers — trading hours, timezone."""
 
 from __future__ import annotations
 
-import logging
-import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-import structlog
+from app.logging_config import setup_logging as setup_logging  # noqa: F401 — re-export
 
 NY_TZ = ZoneInfo("America/New_York")
-
-
-def setup_logging(level: int = logging.INFO, json_format: bool = False) -> None:
-    """Configure root logger with structlog processors.
-
-    Args:
-        level: Logging level (default: INFO).
-        json_format: If True, output JSON lines (for production). Otherwise human-readable.
-    """
-    shared_processors: list[structlog.types.Processor] = [
-        structlog.contextvars.merge_contextvars,
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-    ]
-
-    if json_format:
-        renderer: structlog.types.Processor = structlog.processors.JSONRenderer()
-    else:
-        renderer = structlog.dev.ConsoleRenderer()
-
-    structlog.configure(
-        processors=[
-            *shared_processors,
-            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
-        ],
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.stdlib.BoundLogger,
-        cache_logger_on_first_use=True,
-    )
-
-    formatter = structlog.stdlib.ProcessorFormatter(
-        processors=[
-            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-            renderer,
-        ],
-    )
-
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(formatter)
-
-    root = logging.getLogger()
-    root.handlers.clear()
-    root.addHandler(handler)
-    root.setLevel(level)
 
 
 def now_ny() -> datetime:
