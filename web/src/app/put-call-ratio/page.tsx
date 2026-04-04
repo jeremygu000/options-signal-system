@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -10,6 +10,8 @@ import Alert from "@mui/material/Alert";
 import Grid from "@mui/material/Grid";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
+import Autocomplete from "@mui/material/Autocomplete";
+import CircularProgress from "@mui/material/CircularProgress";
 import Chip from "@mui/material/Chip";
 import Table from "@mui/material/Table";
 import TableHead from "@mui/material/TableHead";
@@ -18,7 +20,8 @@ import TableRow from "@mui/material/TableRow";
 import TableCell from "@mui/material/TableCell";
 import SectionHeader from "@/components/SectionHeader";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { fetchPutCallRatio } from "@/lib/api";
+import { fetchPutCallRatio, searchSymbols } from "@/lib/api";
+import type { SymbolMeta } from "@/lib/types";
 import type {
   PutCallRatioResponse,
   PCRStrikePoint,
@@ -772,6 +775,9 @@ export default function PutCallRatioPage() {
   const [data, setData] = useState<PutCallRatioResponse>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [options, setOptions] = useState<SymbolMeta[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (sym: string) => {
     setLoading(true);
@@ -788,6 +794,35 @@ export default function PutCallRatioPage() {
     }
   }, []);
 
+  const handleInputChange = useCallback(
+    (_event: React.SyntheticEvent, value: string) => {
+      const upper = value.toUpperCase();
+      setInput(upper);
+
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+
+      if (!upper.trim()) {
+        setOptions([]);
+        return;
+      }
+
+      debounceRef.current = setTimeout(() => {
+        setSearchLoading(true);
+        searchSymbols({ query: upper, limit: 20, sort_by: "volume" })
+          .then((res) => setOptions(res.items))
+          .catch(() => setOptions([]))
+          .finally(() => setSearchLoading(false));
+      }, 250);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const handleSubmit = useCallback(() => {
     const s = input.trim().toUpperCase();
     if (!s) return;
@@ -797,35 +832,117 @@ export default function PutCallRatioPage() {
 
   return (
     <Box sx={{ maxWidth: 1100, mx: "auto" }}>
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 2,
-          mb: 4,
-          flexWrap: "wrap",
-        }}
-      >
-        <Typography variant="h5" sx={{ fontWeight: 800 }}>
+      <Box sx={{ mb: 3 }}>
+        <Typography
+          variant="h5"
+          sx={{ fontWeight: 800, fontSize: "1.4rem", mb: 0.25 }}
+        >
           看跌/看涨比率
         </Typography>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
           Put/Call Ratio · {symbol}
         </Typography>
-        <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
-          <TextField
-            size="small"
-            value={input}
-            onChange={(e) => setInput(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            placeholder="Symbol"
-            sx={{ width: 120 }}
-          />
-          <Button variant="contained" size="small" onClick={handleSubmit}>
-            查询
-          </Button>
-        </Box>
       </Box>
+
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 1.5,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <Autocomplete
+              freeSolo
+              options={options}
+              getOptionLabel={(opt) =>
+                typeof opt === "string" ? opt : opt.symbol
+              }
+              inputValue={input}
+              onInputChange={handleInputChange}
+              onChange={(_event, value) => {
+                if (value && typeof value !== "string") {
+                  setInput(value.symbol);
+                }
+              }}
+              loading={searchLoading}
+              filterOptions={(x) => x}
+              renderOption={(props, opt) => {
+                const meta = opt as SymbolMeta;
+                return (
+                  <Box component="li" {...props} key={meta.symbol}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily: "var(--font-geist-mono)",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {meta.symbol}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ ml: 1, color: "text.secondary" }}
+                    >
+                      ${meta.last_close.toFixed(2)} ·{" "}
+                      {meta.avg_volume >= 1e6
+                        ? `${(meta.avg_volume / 1e6).toFixed(1)}M vol`
+                        : `${(meta.avg_volume / 1e3).toFixed(0)}K vol`}
+                    </Typography>
+                  </Box>
+                );
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  size="small"
+                  label="标的 Symbol"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSubmit();
+                    }
+                  }}
+                  sx={{ width: 280 }}
+                  slotProps={{
+                    htmlInput: {
+                      ...params.inputProps,
+                      style: {
+                        fontFamily: "var(--font-geist-mono)",
+                        fontWeight: 700,
+                      },
+                    },
+                    input: {
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {searchLoading ? (
+                            <CircularProgress color="inherit" size={18} />
+                          ) : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    },
+                  }}
+                />
+              )}
+              sx={{ flex: "0 0 auto" }}
+            />
+            <Button
+              variant="contained"
+              onClick={handleSubmit}
+              disabled={loading || !input.trim()}
+              sx={{
+                fontWeight: 700,
+              }}
+            >
+              {loading ? "加载中..." : "查询"}
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
