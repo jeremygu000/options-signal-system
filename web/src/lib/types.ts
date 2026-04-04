@@ -658,6 +658,18 @@ export interface FundamentalAnalysisResponse {
   error: string | null;
 }
 
+// ── WebSocket ──────────────────────────────────────────────────────
+
+export type WSChannel = "signals" | "regime" | "broker" | "health";
+
+export interface WSMessage<T = unknown> {
+  type: "push" | "subscribed" | "unsubscribed" | "pong" | "error";
+  ts: number;
+  channel?: WSChannel;
+  data?: T;
+  error?: string;
+}
+
 // ── Symbol Discovery types ──────────────────────────────────────────
 
 export interface SymbolMeta {

@@ -26,6 +26,7 @@ import DarkModeIcon from "@mui/icons-material/DarkMode";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { useThemeMode } from "./ThemeProvider";
 import { fetchHealth } from "@/lib/api";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import type { HealthResponse } from "@/lib/types";
 
 const DRAWER_WIDTH = 240;
@@ -110,9 +111,26 @@ export default function Sidebar() {
 
   useEffect(() => {
     checkHealth();
-    const interval = setInterval(checkHealth, 30_000);
-    return () => clearInterval(interval);
   }, [checkHealth]);
+
+  const { channelData, isConnected } = useWebSocket(["health"]);
+
+  useEffect(() => {
+    const pushed = channelData.health as
+      | { status: string; timestamp: string; ws_clients: number }
+      | null
+      | undefined;
+    if (pushed) {
+      setApiStatus(pushed.status === "ok" ? "online" : "offline");
+      setLastChecked(new Date(pushed.timestamp));
+    }
+  }, [channelData.health]);
+
+  useEffect(() => {
+    if (!isConnected && apiStatus === "online") {
+      checkHealth();
+    }
+  }, [isConnected, apiStatus, checkHealth]);
 
   const statusColor =
     apiStatus === "online"
@@ -312,7 +330,6 @@ export default function Sidebar() {
       </Box>
 
       <Box sx={{ px: 2.5, py: 2 }}>
-        {/* Header row: API label + status dot + retry */}
         <Box
           sx={{
             display: "flex",
@@ -394,7 +411,6 @@ export default function Sidebar() {
           </Box>
         </Box>
 
-        {/* Latency + version row */}
         <Box
           sx={{
             display: "flex",
@@ -430,7 +446,6 @@ export default function Sidebar() {
           )}
         </Box>
 
-        {/* Data status pills */}
         {healthData && healthData.data_status && (
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mb: 0.75 }}>
             {Object.entries(healthData.data_status).map(([key, ok]) => (
@@ -471,7 +486,6 @@ export default function Sidebar() {
           </Box>
         )}
 
-        {/* Version + last checked */}
         <Box
           sx={{
             display: "flex",

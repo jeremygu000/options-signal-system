@@ -48,7 +48,7 @@
 | Fundamental Data | ✅ yfinance | ✅ | ✅ | ❌ | ❌ | ❌ |
 | ML/AI Enhancement | ✅ 5 modules | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Symbol Discovery | ✅ DuckDB | ✅ | ✅ | ❌ | ❌ | ❌ |
-| WebSocket Real-time | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| WebSocket Real-time | ✅ 4 channels | ❌ | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
@@ -79,6 +79,7 @@
 | 7 | ~~No Position Management / P&L~~ | ✅ Full CRUD position tracking + portfolio summary | `app/positions.py` |
 | 8 | ~~No ML/Statistical Enhancement~~ | ✅ 5 modules — signal scoring, regime classification, LLM analysis | `app/ml/` |
 | 9 | ~~No Fundamental Data~~ | ✅ Valuation, analyst ratings, price targets, earnings surprises, short interest, income highlights | `app/fundamental.py` |
+| 10 | ~~No WebSocket Real-time Push~~ | ✅ 4-channel WebSocket hub (signals, regime, broker, health) with auto-reconnect frontend hook | `app/ws.py` |
 
 ### 🔴 High Priority Gaps
 
@@ -92,7 +93,6 @@
 
 | # | Gap | Impact |
 |---|-----|--------|
-| 10 | No WebSocket real-time push | Frontend must poll |
 | 11 | No Put/Call Ratio signal | Missing market sentiment quantification |
 | 12 | No unusual options volume detection | Missing "smart money" signals |
 
@@ -115,7 +115,7 @@
 ### Phase 3: Production Trading ✅ COMPLETE
 - ✅ **Broker integration** — Alpaca paper trading with full order/position management (`app/broker.py`)
 - ✅ **Position tracking + P&L** — Full CRUD portfolio view with summary (`app/positions.py`)
-- ❌ **WebSocket push** — Real-time signal delivery to frontend
+- ✅ **WebSocket push** — 4-channel real-time hub with auto-reconnect frontend hook (`app/ws.py`)
 
 ---
 
@@ -128,7 +128,7 @@
 | API Security | 4/5 | 5/5 |
 | Test Coverage | 5/5 | 5/5 |
 | Observability | 4/5 | 5/5 |
-| Performance | 4/5 | 5/5 |
+| Performance | 5/5 | 5/5 |
 | Deployment Readiness | 4/5 | 5/5 |
 | **Signal Intelligence** | **5/5** | **5/5** |
 | **Trading Capability** | **4/5** | **5/5** |

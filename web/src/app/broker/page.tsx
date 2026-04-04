@@ -39,6 +39,7 @@ import {
   closeAllBrokerPositions,
   fetchPortfolioHistory,
 } from "@/lib/api";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import type {
   AccountInfoResponse,
   OrderResponse,
@@ -283,10 +284,26 @@ export default function BrokerPage() {
     loadHistory();
   }, [loadHistory]);
 
+  const { channelData } = useWebSocket(["broker"]);
+
   useEffect(() => {
-    const id = setInterval(refreshAll, 15000);
-    return () => clearInterval(id);
-  }, [refreshAll]);
+    const pushed = channelData.broker as
+      | {
+          account: AccountInfoResponse;
+          positions: BrokerPositionResponse[];
+          orders: OrderResponse[];
+        }
+      | null
+      | undefined;
+    if (pushed) {
+      setAccount(pushed.account);
+      setAccountLoading(false);
+      setPositions(pushed.positions);
+      setPositionsLoading(false);
+      setOrders(pushed.orders);
+      setOrdersLoading(false);
+    }
+  }, [channelData.broker]);
 
   function handleOrderSubmit() {
     setOrderSubmitting(true);

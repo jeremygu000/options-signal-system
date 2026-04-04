@@ -11,9 +11,8 @@ import Alert from "@mui/material/Alert";
 import Grid from "@mui/material/Grid";
 import SectionHeader from "@/components/SectionHeader";
 import { fetchRegime } from "@/lib/api";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import type { MarketRegimeResult } from "@/lib/types";
-
-const REFRESH_INTERVAL_MS = 30_000;
 
 function regimeColor(regime: string): "success" | "warning" | "error" {
   if (regime === "risk_on") return "success";
@@ -32,8 +31,8 @@ export default function RegimeSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback((isInitial: boolean) => {
-    if (isInitial) setLoading(true);
+  const load = useCallback(() => {
+    setLoading(true);
     fetchRegime()
       .then((res) => {
         setData(res);
@@ -42,16 +41,23 @@ export default function RegimeSection() {
       .catch((e: unknown) =>
         setError(e instanceof Error ? e.message : "Failed to load"),
       )
-      .finally(() => {
-        if (isInitial) setLoading(false);
-      });
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    load(true);
-    const interval = setInterval(() => load(false), REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
+    load();
   }, [load]);
+
+  const { channelData } = useWebSocket(["regime"]);
+
+  useEffect(() => {
+    const pushed = channelData.regime as MarketRegimeResult | null;
+    if (pushed) {
+      setData(pushed);
+      setError(null);
+      setLoading(false);
+    }
+  }, [channelData.regime]);
 
   return (
     <Box component="section" id="regime" sx={{ mb: 6 }}>

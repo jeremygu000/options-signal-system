@@ -16,9 +16,13 @@ import LinearProgress from "@mui/material/LinearProgress";
 import Button from "@mui/material/Button";
 import { useThemeMode } from "@/components/ThemeProvider";
 import { fetchScan, fetchIndicators, fetchOHLCV } from "@/lib/api";
-import type { Signal, IndicatorSnapshot, OHLCVBar } from "@/lib/types";
-
-const REFRESH_INTERVAL_MS = 30_000;
+import { useWebSocket } from "@/hooks/useWebSocket";
+import type {
+  Signal,
+  IndicatorSnapshot,
+  OHLCVBar,
+  FullScanResponse,
+} from "@/lib/types";
 
 function signalLevelColor(level: string): "error" | "warning" | "default" {
   if (level === "强信号") return "error";
@@ -295,11 +299,24 @@ export default function SymbolDetailPage() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      loadSignal(false);
       loadIndicators(false);
-    }, REFRESH_INTERVAL_MS);
+    }, 30_000);
     return () => clearInterval(interval);
-  }, [loadSignal, loadIndicators]);
+  }, [loadIndicators]);
+
+  const { channelData } = useWebSocket(["signals"]);
+
+  useEffect(() => {
+    const pushed = channelData.signals as FullScanResponse | null | undefined;
+    if (pushed) {
+      const found = pushed.signals.find((s) => s.symbol === symbol) ?? null;
+      setSignal(found);
+      setSignalNotFound(found === null);
+      setLastUpdated(new Date());
+      setErrorSignal(null);
+      setLoadingSignal(false);
+    }
+  }, [channelData.signals, symbol]);
 
   const rp = indicators?.range_position ?? 0;
 

@@ -15,9 +15,8 @@ import Divider from "@mui/material/Divider";
 import Tooltip from "@mui/material/Tooltip";
 import SectionHeader from "@/components/SectionHeader";
 import { fetchScan } from "@/lib/api";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import type { Signal, FullScanResponse } from "@/lib/types";
-
-const REFRESH_INTERVAL_MS = 30_000;
 
 function signalLevelColor(level: string): "error" | "warning" | "default" {
   if (level === "强信号") return "error";
@@ -296,8 +295,8 @@ export default function SignalsSection() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const load = useCallback((isInitial: boolean) => {
-    if (isInitial) setLoading(true);
+  const load = useCallback(() => {
+    setLoading(true);
     fetchScan()
       .then((res) => {
         setData(res);
@@ -307,16 +306,24 @@ export default function SignalsSection() {
       .catch((e: unknown) =>
         setError(e instanceof Error ? e.message : "Failed to load"),
       )
-      .finally(() => {
-        if (isInitial) setLoading(false);
-      });
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    load(true);
-    const interval = setInterval(() => load(false), REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
+    load();
   }, [load]);
+
+  const { channelData } = useWebSocket(["signals"]);
+
+  useEffect(() => {
+    const pushed = channelData.signals as FullScanResponse | null;
+    if (pushed) {
+      setData(pushed);
+      setLastUpdated(new Date());
+      setError(null);
+      setLoading(false);
+    }
+  }, [channelData.signals]);
 
   const signals = data?.signals ?? [];
   const strongSignals = signals.filter((s) => s.level === "强信号");

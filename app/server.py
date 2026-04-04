@@ -14,9 +14,9 @@ import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from functools import lru_cache
-from typing import Annotated, AsyncIterator
+from typing import Annotated, Any, AsyncIterator
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import httpx
@@ -111,6 +111,7 @@ from app.signal_backtest import run_signal_backtest, run_walk_forward
 from app.broker import AlpacaBroker, get_broker
 from app.strategy_engine import StrategyEngine
 from app.symbol_discovery import build_metadata_index, clear_discovery_cache, search_symbols
+from app.ws import broadcaster, handle_client_message, manager as ws_manager
 from app.ml.llm_analyzer import stream_signal_analysis
 from app.ml.pipeline import TrainingStatus, load_status, run_training_pipeline
 from app.ml.regime_classifier import RegimeClassifier
@@ -273,12 +274,69 @@ def _check_rate_limit(client_ip: str) -> None:
 # ── App ──────────────────────────────────────────────────────────────
 
 
+# -- WebSocket data providers (called by Broadcaster) --
+
+
+async def _ws_signals_provider() -> dict[str, Any] | None:
+    loop = asyncio.get_event_loop()
+    engine = get_regime_engine()
+    strat = get_strategy_engine()
+    regime = await loop.run_in_executor(None, engine.evaluate)
+
+    async def _eval(sym: str) -> dict[str, Any]:
+        sig = await loop.run_in_executor(None, strat.evaluate_symbol, sym, regime)
+        return sig.model_dump()
+
+    signals = await asyncio.gather(*(_eval(s) for s in settings.symbols))
+    return {
+        "regime": regime.model_dump(),
+        "signals": list(signals),
+        "timestamp": now_ny().isoformat(),
+    }
+
+
+async def _ws_regime_provider() -> dict[str, Any] | None:
+    loop = asyncio.get_event_loop()
+    regime = await loop.run_in_executor(None, get_regime_engine().evaluate)
+    return regime.model_dump()
+
+
+async def _ws_broker_provider() -> dict[str, Any] | None:
+    try:
+        broker = get_broker()
+    except Exception:
+        return None
+    loop = asyncio.get_event_loop()
+    account = await loop.run_in_executor(None, broker.get_account)
+    positions = await loop.run_in_executor(None, broker.get_positions)
+    orders = await loop.run_in_executor(None, broker.get_orders, "open", 20, None)
+    return {
+        "account": account.model_dump(),
+        "positions": [p.model_dump() for p in positions],
+        "orders": [o.model_dump() for o in orders],
+    }
+
+
+async def _ws_health_provider() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "timestamp": now_ny().isoformat(),
+        "ws_clients": ws_manager.client_count,
+    }
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
     await init_db()
+    broadcaster.register("signals", _ws_signals_provider)
+    broadcaster.register("regime", _ws_regime_provider)
+    broadcaster.register("broker", _ws_broker_provider)
+    broadcaster.register("health", _ws_health_provider)
+    await broadcaster.start()
     logger.info("Signal system API started on port 8400")
     yield
+    await broadcaster.stop()
     get_regime_engine.cache_clear()
     get_strategy_engine.cache_clear()
     get_regime_classifier.cache_clear()
@@ -300,6 +358,7 @@ tags_metadata = [
     {"name": "ml", "description": "ML-enhanced signals, regime & training"},
     {"name": "discovery", "description": "Symbol discovery & metadata"},
     {"name": "broker", "description": "Alpaca broker integration — account, orders, positions, portfolio"},
+    {"name": "websocket", "description": "Real-time push via WebSocket"},
 ]
 
 app = FastAPI(
@@ -1545,3 +1604,20 @@ async def broker_close_all_positions(broker: BrokerDep) -> dict[str, int]:
 @app.post("/api/v1/broker/portfolio/history", response_model=PortfolioHistoryResponse, tags=["broker"])
 async def broker_portfolio_history(req: PortfolioHistoryRequest, broker: BrokerDep) -> PortfolioHistoryResponse:
     return await asyncio.to_thread(broker.get_portfolio_history, req)
+
+
+# ── WebSocket ────────────────────────────────────────────────────────
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket) -> None:
+    client_id = uuid.uuid4().hex[:12]
+    await ws_manager.connect(ws, client_id)
+    try:
+        while True:
+            raw = await ws.receive_text()
+            await handle_client_message(client_id, raw)
+    except Exception:
+        pass
+    finally:
+        ws_manager.disconnect(client_id)
