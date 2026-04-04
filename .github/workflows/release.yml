@@ -19,35 +19,36 @@ jobs:
     name: Pre-release checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: astral-sh/setup-uv@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
           version: "latest"
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Set up Python
+        run: uv python install 3.12
 
-      - uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
 
       - name: Backend checks
         run: |
-          uv sync
+          uv sync --frozen
           uv run black --check app/ tests/
           uv run mypy app/
-          uv run pytest -q
+          uv run pytest -v --tb=short -q
 
       - name: Frontend checks
         working-directory: web
         run: |
           npm ci
-          npm run typecheck
           npm run lint
+          npm run typecheck
           npm run build
 
   docker:
@@ -56,7 +57,7 @@ jobs:
     needs: test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -95,7 +96,7 @@ jobs:
     needs: docker
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
