@@ -43,11 +43,18 @@ import type {
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8400";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? "";
+
+function authHeaders(): HeadersInit {
+  if (!API_KEY) return {};
+  return { Authorization: `Bearer ${API_KEY}` };
+}
 
 async function fetcher<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     cache: "no-store",
     ...init,
+    headers: { ...authHeaders(), ...init?.headers },
   });
   if (!res.ok) {
     throw new Error(`API error ${res.status}: ${path}`);
@@ -274,6 +281,7 @@ export async function deletePosition(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/v1/positions/${id}`, {
     method: "DELETE",
     cache: "no-store",
+    headers: { ...authHeaders() },
   });
   if (!res.ok) {
     throw new Error(`API error ${res.status}: /api/v1/positions/${id}`);
@@ -459,6 +467,7 @@ export async function cancelOrder(orderId: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/v1/broker/orders/${orderId}`, {
     method: "DELETE",
     cache: "no-store",
+    headers: { ...authHeaders() },
   });
   if (!res.ok) {
     throw new Error(`API error ${res.status}: cancel order ${orderId}`);

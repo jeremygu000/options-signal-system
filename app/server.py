@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 from app.backtester import BacktestConfig, StrategyType, run_backtest, run_multi_strategy_backtest
 from app.config import settings
+from app.security import ApiKey
 from app.data_provider import (
     clear_cache as clear_data_cache,
     get_available_symbols,
@@ -1263,7 +1264,7 @@ def _position_to_response(pos: Position, current_price: float | None = None) -> 
 
 
 @app.post("/api/v1/positions", response_model=PositionResponse, tags=["positions"], status_code=201)
-async def create_position_endpoint(req: PositionCreate) -> PositionResponse:
+async def create_position_endpoint(req: PositionCreate, _api_key: ApiKey) -> PositionResponse:
     if req.quantity == 0:
         raise HTTPException(status_code=400, detail="quantity cannot be 0")
     async with get_session() as session:
@@ -1286,6 +1287,7 @@ async def create_position_endpoint(req: PositionCreate) -> PositionResponse:
 
 @app.get("/api/v1/positions", response_model=list[PositionResponse], tags=["positions"])
 async def list_positions_endpoint(
+    _api_key: ApiKey,
     status: str | None = Query(default=None, pattern=r"^(open|closed|expired)$"),
     symbol: str | None = Query(default=None),
     strategy: str | None = Query(default=None),
@@ -1296,7 +1298,7 @@ async def list_positions_endpoint(
 
 
 @app.get("/api/v1/positions/{position_id}", response_model=PositionResponse, tags=["positions"])
-async def get_position_endpoint(position_id: str) -> PositionResponse:
+async def get_position_endpoint(position_id: str, _api_key: ApiKey) -> PositionResponse:
     async with get_session() as session:
         pos = await get_position(session, position_id)
         if pos is None:
@@ -1305,7 +1307,7 @@ async def get_position_endpoint(position_id: str) -> PositionResponse:
 
 
 @app.put("/api/v1/positions/{position_id}", response_model=PositionResponse, tags=["positions"])
-async def update_position_endpoint(position_id: str, req: PositionUpdate) -> PositionResponse:
+async def update_position_endpoint(position_id: str, req: PositionUpdate, _api_key: ApiKey) -> PositionResponse:
     async with get_session() as session:
         updates = {k: v for k, v in req.model_dump().items() if v is not None}
         if not updates:
@@ -1317,7 +1319,7 @@ async def update_position_endpoint(position_id: str, req: PositionUpdate) -> Pos
 
 
 @app.post("/api/v1/positions/{position_id}/close", response_model=PositionResponse, tags=["positions"])
-async def close_position_endpoint(position_id: str, req: PositionClose) -> PositionResponse:
+async def close_position_endpoint(position_id: str, req: PositionClose, _api_key: ApiKey) -> PositionResponse:
     async with get_session() as session:
         try:
             pos = await close_position(
@@ -1335,7 +1337,7 @@ async def close_position_endpoint(position_id: str, req: PositionClose) -> Posit
 
 
 @app.delete("/api/v1/positions/{position_id}", tags=["positions"], status_code=204)
-async def delete_position_endpoint(position_id: str) -> Response:
+async def delete_position_endpoint(position_id: str, _api_key: ApiKey) -> Response:
     async with get_session() as session:
         deleted = await delete_position(session, position_id)
         if not deleted:
@@ -1344,7 +1346,7 @@ async def delete_position_endpoint(position_id: str) -> Response:
 
 
 @app.get("/api/v1/portfolio/summary", response_model=PortfolioSummaryResponse, tags=["positions"])
-async def portfolio_summary() -> PortfolioSummaryResponse:
+async def portfolio_summary(_api_key: ApiKey) -> PortfolioSummaryResponse:
     async with get_session() as session:
         all_positions = await list_positions(session)
 
@@ -1369,7 +1371,7 @@ async def portfolio_summary() -> PortfolioSummaryResponse:
 
 
 @app.get("/api/v1/portfolio/strategies", response_model=list[StrategyGroupResponse], tags=["positions"])
-async def portfolio_by_strategy() -> list[StrategyGroupResponse]:
+async def portfolio_by_strategy(_api_key: ApiKey) -> list[StrategyGroupResponse]:
     async with get_session() as session:
         all_positions = await list_positions(session)
         groups = group_by_strategy(all_positions)
@@ -1391,14 +1393,14 @@ async def portfolio_by_strategy() -> list[StrategyGroupResponse]:
 
 
 @app.get("/api/v1/positions/alerts/expiring", response_model=list[PositionResponse], tags=["positions"])
-async def expiring_positions(days: int = Query(default=7, ge=1, le=90)) -> list[PositionResponse]:
+async def expiring_positions(_api_key: ApiKey, days: int = Query(default=7, ge=1, le=90)) -> list[PositionResponse]:
     async with get_session() as session:
         positions = await get_expiring_positions(session, days_ahead=days)
         return [_position_to_response(p) for p in positions]
 
 
 @app.post("/api/v1/positions/batch/mark-expired", tags=["positions"])
-async def batch_mark_expired() -> dict[str, int]:
+async def batch_mark_expired(_api_key: ApiKey) -> dict[str, int]:
     async with get_session() as session:
         count = await mark_expired_positions(session)
         return {"marked_expired": count}
@@ -1490,7 +1492,7 @@ async def get_ml_regime(regime_engine: RegimeEngine, ml_regime: MLRegime) -> MLR
 
 
 @app.post("/api/v1/ml/train", response_model=TrainingStatusResponse, tags=["ml"])
-async def trigger_training(req: TrainingRequest) -> TrainingStatusResponse:
+async def trigger_training(req: TrainingRequest, _api_key: ApiKey) -> TrainingStatusResponse:
     regime_clf = get_regime_classifier()
     scorer = get_signal_scorer()
 
@@ -1645,12 +1647,12 @@ BrokerDep = Annotated[AlpacaBroker, Depends(get_broker)]
 
 
 @app.get("/api/v1/broker/account", response_model=AccountInfoResponse, tags=["broker"])
-async def broker_account(broker: BrokerDep) -> AccountInfoResponse:
+async def broker_account(broker: BrokerDep, _api_key: ApiKey) -> AccountInfoResponse:
     return await asyncio.to_thread(broker.get_account)
 
 
 @app.post("/api/v1/broker/orders", response_model=OrderResponse, tags=["broker"])
-async def broker_submit_order(req: CreateOrderRequest, broker: BrokerDep) -> OrderResponse:
+async def broker_submit_order(req: CreateOrderRequest, broker: BrokerDep, _api_key: ApiKey) -> OrderResponse:
     try:
         return await asyncio.to_thread(broker.submit_order, req)
     except ValueError as exc:
@@ -1662,6 +1664,7 @@ async def broker_submit_order(req: CreateOrderRequest, broker: BrokerDep) -> Ord
 @app.get("/api/v1/broker/orders", response_model=list[OrderResponse], tags=["broker"])
 async def broker_list_orders(
     broker: BrokerDep,
+    _api_key: ApiKey,
     status: str = Query(default="open", pattern="^(open|closed|all)$"),
     limit: int = Query(default=50, ge=1, le=500),
     symbols: str | None = Query(default=None, description="Comma-separated symbols"),
@@ -1671,7 +1674,7 @@ async def broker_list_orders(
 
 
 @app.delete("/api/v1/broker/orders/{order_id}", tags=["broker"])
-async def broker_cancel_order(order_id: str, broker: BrokerDep) -> dict[str, str]:
+async def broker_cancel_order(order_id: str, broker: BrokerDep, _api_key: ApiKey) -> dict[str, str]:
     try:
         await asyncio.to_thread(broker.cancel_order, order_id)
         return {"status": "cancelled", "order_id": order_id}
@@ -1680,18 +1683,18 @@ async def broker_cancel_order(order_id: str, broker: BrokerDep) -> dict[str, str
 
 
 @app.delete("/api/v1/broker/orders", tags=["broker"])
-async def broker_cancel_all_orders(broker: BrokerDep) -> dict[str, int]:
+async def broker_cancel_all_orders(broker: BrokerDep, _api_key: ApiKey) -> dict[str, int]:
     count = await asyncio.to_thread(broker.cancel_all_orders)
     return {"cancelled": count}
 
 
 @app.get("/api/v1/broker/positions", response_model=list[BrokerPositionResponse], tags=["broker"])
-async def broker_list_positions(broker: BrokerDep) -> list[BrokerPositionResponse]:
+async def broker_list_positions(broker: BrokerDep, _api_key: ApiKey) -> list[BrokerPositionResponse]:
     return await asyncio.to_thread(broker.get_positions)
 
 
 @app.get("/api/v1/broker/positions/{symbol}", response_model=BrokerPositionResponse, tags=["broker"])
-async def broker_get_position(symbol: str, broker: BrokerDep) -> BrokerPositionResponse:
+async def broker_get_position(symbol: str, broker: BrokerDep, _api_key: ApiKey) -> BrokerPositionResponse:
     try:
         return await asyncio.to_thread(broker.get_position, symbol)
     except Exception as exc:
@@ -1702,6 +1705,7 @@ async def broker_get_position(symbol: str, broker: BrokerDep) -> BrokerPositionR
 async def broker_close_position(
     symbol: str,
     broker: BrokerDep,
+    _api_key: ApiKey,
     req: BrokerClosePositionRequest | None = None,
 ) -> OrderResponse:
     try:
@@ -1711,13 +1715,15 @@ async def broker_close_position(
 
 
 @app.delete("/api/v1/broker/positions", tags=["broker"])
-async def broker_close_all_positions(broker: BrokerDep) -> dict[str, int]:
+async def broker_close_all_positions(broker: BrokerDep, _api_key: ApiKey) -> dict[str, int]:
     count = await asyncio.to_thread(broker.close_all_positions)
     return {"closed": count}
 
 
 @app.post("/api/v1/broker/portfolio/history", response_model=PortfolioHistoryResponse, tags=["broker"])
-async def broker_portfolio_history(req: PortfolioHistoryRequest, broker: BrokerDep) -> PortfolioHistoryResponse:
+async def broker_portfolio_history(
+    req: PortfolioHistoryRequest, broker: BrokerDep, _api_key: ApiKey
+) -> PortfolioHistoryResponse:
     return await asyncio.to_thread(broker.get_portfolio_history, req)
 
 

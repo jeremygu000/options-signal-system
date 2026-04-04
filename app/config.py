@@ -49,6 +49,10 @@ class Settings(BaseSettings):
         description="Allowed CORS origins",
     )
 
+    # ── API Security ─────────────────────────────────────────────────
+    api_auth_enabled: bool = Field(default=False, description="Enable API key authentication")
+    api_keys: list[str] = Field(default=[], description="Valid API keys for Bearer auth")
+
     # ── Rate limiting ────────────────────────────────────────────────
     rate_limit_per_minute: int = Field(default=60, description="Max requests per minute per IP")
 
