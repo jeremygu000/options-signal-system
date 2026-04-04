@@ -187,3 +187,40 @@ export interface GreeksResponse {
   vega: number;
   rho: number;
 }
+
+// ── IV Analysis types ───────────────────────────────────────────────
+
+export interface IVSkewPoint {
+  strike: number;
+  implied_volatility: number;
+  option_type: "c" | "p";
+  moneyness: number;
+}
+
+export interface IVTermPoint {
+  expiration: string;
+  dte_days: number;
+  atm_iv: number;
+}
+
+export interface HVPoint {
+  window_days: number;
+  realized_vol: number;
+  label: string;
+}
+
+export interface IVAnalysisResponse {
+  symbol: string;
+  spot_price: number;
+  current_atm_iv: number;
+  iv_rank: number;
+  iv_percentile: number;
+  iv_high_52w: number;
+  iv_low_52w: number;
+  skew_points: IVSkewPoint[];
+  put_call_skew: number;
+  term_structure: IVTermPoint[];
+  hv_points: HVPoint[];
+  iv_rv_spread: number;
+  error: string | null;
+}

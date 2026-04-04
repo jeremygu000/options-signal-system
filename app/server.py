@@ -27,12 +27,17 @@ from app.backtester import BacktestConfig, StrategyType, run_backtest, run_multi
 from app.config import settings
 from app.data_provider import clear_cache as clear_data_cache, get_daily, get_intraday
 from app.greeks import GreeksResult, calculate_greeks
+from app.iv_analysis import IVAnalysisResult, compute_iv_analysis
 from app.indicators import atr, prev_day_high, prev_day_low, rolling_high, rolling_low, session_vwap, sma
 from app.market_regime import MarketRegimeEngine
 from app.models import (
     BacktestMetrics,
     BacktestRequest,
     BacktestResponse,
+    HVPointModel,
+    IVAnalysisResponse,
+    IVSkewPointModel,
+    IVTermPointModel,
     MarketRegimeResult,
     OptionsChainDetail,
     OptionsChainSummary,
@@ -576,6 +581,55 @@ async def greeks_calculate(req: GreeksRequest) -> GreeksResponse:
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/v1/iv/analysis/{symbol}", response_model=IVAnalysisResponse, tags=["options"])
+@app.get("/api/iv/analysis/{symbol}", response_model=IVAnalysisResponse, include_in_schema=False)
+async def iv_analysis(symbol: str) -> IVAnalysisResponse:
+    upper_symbol = symbol.upper()
+    if upper_symbol not in ALLOWED_SYMBOLS:
+        raise HTTPException(status_code=400, detail=f"Unknown symbol: {symbol}. Allowed: {sorted(ALLOWED_SYMBOLS)}")
+
+    loop = asyncio.get_event_loop()
+    result: IVAnalysisResult = await loop.run_in_executor(None, compute_iv_analysis, upper_symbol)
+
+    return IVAnalysisResponse(
+        symbol=result.symbol,
+        spot_price=result.spot_price,
+        current_atm_iv=result.current_atm_iv,
+        iv_rank=result.iv_rank,
+        iv_percentile=result.iv_percentile,
+        iv_high_52w=result.iv_high_52w,
+        iv_low_52w=result.iv_low_52w,
+        skew_points=[
+            IVSkewPointModel(
+                strike=p.strike,
+                implied_volatility=p.implied_volatility,
+                option_type=p.option_type,
+                moneyness=p.moneyness,
+            )
+            for p in result.skew_points
+        ],
+        put_call_skew=result.put_call_skew,
+        term_structure=[
+            IVTermPointModel(
+                expiration=t.expiration,
+                dte_days=t.dte_days,
+                atm_iv=t.atm_iv,
+            )
+            for t in result.term_structure
+        ],
+        hv_points=[
+            HVPointModel(
+                window_days=h.window_days,
+                realized_vol=h.realized_vol,
+                label=h.label,
+            )
+            for h in result.hv_points
+        ],
+        iv_rv_spread=result.iv_rv_spread,
+        error=result.error,
+    )
 
 
 @app.post("/api/v1/backtest", response_model=BacktestResponse, tags=["options"])

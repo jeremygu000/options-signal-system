@@ -34,6 +34,7 @@ import {
   runBacktest,
   interpretBacktest,
   calculateGreeks,
+  fetchIVAnalysis,
 } from "@/lib/api";
 import type {
   SymbolInfo,
@@ -46,6 +47,7 @@ import type {
   StrategyType,
   GreeksRequest,
   GreeksResponse,
+  IVAnalysisResponse,
 } from "@/lib/types";
 
 function daysUntil(dateStr: string): number {
@@ -375,9 +377,9 @@ function ExpirationsBrowser() {
 
       {loadingExpirations && (
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-          {Array.from({ length: 8 }).map((_, i) => (
+          {["a", "b", "c", "d", "e", "f", "g", "h"].map((id) => (
             <Skeleton
-              key={`exp-skel-${i}`}
+              key={`exp-skel-${id}`}
               variant="rounded"
               width={120}
               height={32}
@@ -679,8 +681,8 @@ function OptionsChainSection() {
 
       {loadingChain && (
         <Grid container spacing={2}>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Grid key={`chain-skel-${i}`} size={{ xs: 6, sm: 3 }}>
+          {["a", "b", "c", "d"].map((id) => (
+            <Grid key={`chain-skel-${id}`} size={{ xs: 6, sm: 3 }}>
               <Skeleton variant="rounded" height={88} />
             </Grid>
           ))}
@@ -921,9 +923,9 @@ function OptionsChainSection() {
               <Box sx={{ overflowX: "auto" }}>
                 {loadingDetail ? (
                   <Box sx={{ p: 2 }}>
-                    {Array.from({ length: 8 }).map((_, i) => (
+                    {["a", "b", "c", "d", "e", "f", "g", "h"].map((id) => (
                       <Skeleton
-                        key={`tbl-skel-${i}`}
+                        key={`tbl-skel-${id}`}
                         variant="rectangular"
                         height={28}
                         sx={{ mb: 0.5, borderRadius: 0.5 }}
@@ -1888,6 +1890,704 @@ function GreeksCalculator() {
   );
 }
 
+interface IVSkewChartProps {
+  callPoints: { strike: number; implied_volatility: number }[];
+  putPoints: { strike: number; implied_volatility: number }[];
+}
+
+function IVSkewChart({ callPoints, putPoints }: IVSkewChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { mode } = useThemeMode();
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (callPoints.length === 0 && putPoints.length === 0) return;
+
+    let chart: import("lightweight-charts").IChartApi | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    async function init() {
+      const lc = await import("lightweight-charts");
+      const el = containerRef.current;
+      if (!el) return;
+
+      const isDark = mode === "dark";
+      const bg = isDark ? "#111827" : "#ffffff";
+      const textColor = isDark ? "#8899aa" : "#627183";
+      const gridColor = isDark ? "#1e2a3a" : "#f0f2f5";
+
+      chart = lc.createChart(el, {
+        width: el.clientWidth,
+        height: 280,
+        layout: { background: { color: bg }, textColor },
+        grid: {
+          vertLines: { color: gridColor },
+          horzLines: { color: gridColor },
+        },
+        crosshair: { mode: lc.CrosshairMode.Normal },
+        rightPriceScale: { borderColor: gridColor },
+        timeScale: { borderColor: gridColor, timeVisible: false },
+      });
+
+      if (callPoints.length > 0) {
+        const callSeries = chart.addSeries(lc.LineSeries, {
+          color: "#36bb80",
+          lineWidth: 2,
+          title: "Calls",
+          crosshairMarkerVisible: true,
+          crosshairMarkerRadius: 4,
+        });
+        const callData = callPoints
+          .toSorted((a, b) => a.strike - b.strike)
+          .map((p) => ({
+            time: p.strike as unknown as import("lightweight-charts").Time,
+            value: p.implied_volatility * 100,
+          }));
+        callSeries.setData(callData);
+      }
+
+      if (putPoints.length > 0) {
+        const putSeries = chart.addSeries(lc.LineSeries, {
+          color: "#ff7134",
+          lineWidth: 2,
+          title: "Puts",
+          crosshairMarkerVisible: true,
+          crosshairMarkerRadius: 4,
+        });
+        const putData = putPoints
+          .toSorted((a, b) => a.strike - b.strike)
+          .map((p) => ({
+            time: p.strike as unknown as import("lightweight-charts").Time,
+            value: p.implied_volatility * 100,
+          }));
+        putSeries.setData(putData);
+      }
+
+      chart.timeScale().fitContent();
+
+      resizeObserver = new ResizeObserver(() => {
+        if (chart && el) chart.applyOptions({ width: el.clientWidth });
+      });
+      resizeObserver.observe(el);
+    }
+
+    init();
+
+    return () => {
+      resizeObserver?.disconnect();
+      chart?.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mode captured via closure
+  }, [callPoints, putPoints]);
+
+  return <Box ref={containerRef} sx={{ width: "100%", minHeight: 280 }} />;
+}
+
+interface IVTermStructureChartProps {
+  points: { dte_days: number; atm_iv: number }[];
+}
+
+function IVTermStructureChart({ points }: IVTermStructureChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { mode } = useThemeMode();
+
+  useEffect(() => {
+    if (!containerRef.current || points.length === 0) return;
+
+    let chart: import("lightweight-charts").IChartApi | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    async function init() {
+      const lc = await import("lightweight-charts");
+      const el = containerRef.current;
+      if (!el) return;
+
+      const isDark = mode === "dark";
+      const bg = isDark ? "#111827" : "#ffffff";
+      const textColor = isDark ? "#8899aa" : "#627183";
+      const gridColor = isDark ? "#1e2a3a" : "#f0f2f5";
+
+      chart = lc.createChart(el, {
+        width: el.clientWidth,
+        height: 280,
+        layout: { background: { color: bg }, textColor },
+        grid: {
+          vertLines: { color: gridColor },
+          horzLines: { color: gridColor },
+        },
+        crosshair: { mode: lc.CrosshairMode.Normal },
+        rightPriceScale: { borderColor: gridColor },
+        timeScale: { borderColor: gridColor, timeVisible: false },
+      });
+
+      const series = chart.addSeries(lc.LineSeries, {
+        color: "#3b89ff",
+        lineWidth: 2,
+        title: "ATM IV",
+        crosshairMarkerVisible: true,
+        crosshairMarkerRadius: 4,
+        lastValueVisible: true,
+      });
+
+      const sorted = points.toSorted((a, b) => a.dte_days - b.dte_days);
+      const seriesData = sorted.map((p) => ({
+        time: p.dte_days as unknown as import("lightweight-charts").Time,
+        value: p.atm_iv * 100,
+      }));
+
+      series.setData(seriesData);
+      chart.timeScale().fitContent();
+
+      resizeObserver = new ResizeObserver(() => {
+        if (chart && el) chart.applyOptions({ width: el.clientWidth });
+      });
+      resizeObserver.observe(el);
+    }
+
+    init();
+
+    return () => {
+      resizeObserver?.disconnect();
+      chart?.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mode captured via closure
+  }, [points]);
+
+  return <Box ref={containerRef} sx={{ width: "100%", minHeight: 280 }} />;
+}
+
+function ivGaugeColor(value: number): string {
+  if (value < 30) return "#36bb80";
+  if (value <= 70) return "#fdbc2a";
+  return "#ff7134";
+}
+
+function IVGauge({ label, value }: { label: string; value: number }) {
+  const clamped = Math.min(100, Math.max(0, value));
+  const color = ivGaugeColor(clamped);
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 1,
+      }}
+    >
+      <Box sx={{ position: "relative", display: "inline-flex" }}>
+        <CircularProgress
+          variant="determinate"
+          value={100}
+          size={100}
+          thickness={4}
+          sx={{ color: "action.disabledBackground", position: "absolute" }}
+        />
+        <CircularProgress
+          variant="determinate"
+          value={clamped}
+          size={100}
+          thickness={4}
+          sx={{ color }}
+        />
+        <Box
+          sx={{
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            position: "absolute",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Typography
+            variant="body1"
+            sx={{
+              fontFamily: "var(--font-geist-mono)",
+              fontWeight: 700,
+              color,
+              fontSize: "1.1rem",
+            }}
+          >
+            {Math.round(clamped)}
+          </Typography>
+        </Box>
+      </Box>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {label}
+      </Typography>
+    </Box>
+  );
+}
+
+function IVAnalysisSection() {
+  const [symbols, setSymbols] = useState<SymbolInfo[]>([]);
+  const [selectedSymbol, setSelectedSymbol] = useState<SymbolInfo | null>(null);
+  const [ivData, setIvData] = useState<IVAnalysisResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingSymbols, setLoadingSymbols] = useState(true);
+
+  useEffect(() => {
+    fetchSymbols()
+      .then((syms) => {
+        setSymbols(syms);
+        if (syms.length > 0) setSelectedSymbol(syms[0]);
+      })
+      .catch((e: unknown) =>
+        setError(e instanceof Error ? e.message : "Failed to load symbols"),
+      )
+      .finally(() => setLoadingSymbols(false));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedSymbol) return;
+    setLoading(true);
+    setIvData(null);
+    setError(null);
+    fetchIVAnalysis(selectedSymbol.symbol)
+      .then((data) => setIvData(data))
+      .catch((e: unknown) =>
+        setError(e instanceof Error ? e.message : "Failed to load IV data"),
+      )
+      .finally(() => setLoading(false));
+  }, [selectedSymbol]);
+
+  const callPoints =
+    ivData?.skew_points.filter((p) => p.option_type === "c") ?? [];
+  const putPoints =
+    ivData?.skew_points.filter((p) => p.option_type === "p") ?? [];
+
+  return (
+    <Box component="section" id="iv-analysis" sx={{ mb: 6 }}>
+      <SectionHeader
+        number="05"
+        title="IV Analysis · 隐含波动率分析"
+        subtitle="IV Rank, Percentile, Skew & Term Structure"
+      />
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {loadingSymbols ? (
+        <Skeleton variant="rounded" height={56} sx={{ mb: 2, maxWidth: 320 }} />
+      ) : (
+        <Autocomplete
+          options={symbols}
+          value={selectedSymbol}
+          onChange={(_, val) => setSelectedSymbol(val)}
+          getOptionLabel={(opt) => opt.symbol}
+          renderOption={(props, opt) => (
+            <Box component="li" {...props} key={opt.symbol}>
+              <Typography
+                variant="body2"
+                sx={{ fontFamily: "var(--font-geist-mono)", fontWeight: 700 }}
+              >
+                {opt.symbol}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ ml: 1, color: "text.secondary" }}
+              >
+                {opt.daily_rows} rows · {opt.last_date}
+              </Typography>
+            </Box>
+          )}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="选择标的 Select Symbol"
+              size="small"
+              sx={{ maxWidth: 320 }}
+            />
+          )}
+          sx={{ mb: 3 }}
+        />
+      )}
+
+      {loading && (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <Box sx={{ display: "flex", gap: 3, mb: 1 }}>
+            <Skeleton variant="circular" width={100} height={100} />
+            <Skeleton variant="circular" width={100} height={100} />
+          </Box>
+          <Box sx={{ display: "flex", gap: 2 }}>
+            {(["atm", "h52", "l52", "skew", "vrp"] as const).map((k) => (
+              <Skeleton
+                key={`iv-skel-${k}`}
+                variant="rounded"
+                height={80}
+                sx={{ flex: 1 }}
+              />
+            ))}
+          </Box>
+          <Skeleton variant="rounded" height={280} />
+          <Skeleton variant="rounded" height={280} />
+        </Box>
+      )}
+
+      {!loading && ivData && !ivData.error && (
+        <>
+          <Box sx={{ display: "flex", gap: 4, mb: 3, flexWrap: "wrap" }}>
+            <IVGauge label="IV Rank" value={ivData.iv_rank} />
+            <IVGauge label="IV Percentile" value={ivData.iv_percentile} />
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                gap: 0.5,
+              }}
+            >
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                {ivData.symbol} · Spot
+              </Typography>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontFamily: "var(--font-geist-mono)",
+                  fontWeight: 700,
+                  color: "#3b89ff",
+                }}
+              >
+                ${fmt(ivData.spot_price, 2)}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+              <Card sx={{ height: "100%" }}>
+                <CardContent sx={{ pb: "16px !important" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                  >
+                    ATM IV
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                  >
+                    平价隐波
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      fontSize: "1.25rem",
+                      color: "#3b89ff",
+                    }}
+                  >
+                    {fmt(ivData.current_atm_iv * 100, 1)}%
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+              <Card sx={{ height: "100%" }}>
+                <CardContent sx={{ pb: "16px !important" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                  >
+                    52W IV High
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                  >
+                    年度最高隐波
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      fontSize: "1.25rem",
+                      color: "#ff7134",
+                    }}
+                  >
+                    {fmt(ivData.iv_high_52w * 100, 1)}%
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+              <Card sx={{ height: "100%" }}>
+                <CardContent sx={{ pb: "16px !important" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                  >
+                    52W IV Low
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                  >
+                    年度最低隐波
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      fontSize: "1.25rem",
+                      color: "#36bb80",
+                    }}
+                  >
+                    {fmt(ivData.iv_low_52w * 100, 1)}%
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+              <Card sx={{ height: "100%" }}>
+                <CardContent sx={{ pb: "16px !important" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                  >
+                    Put/Call Skew
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                  >
+                    认沽/认购偏斜
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      fontSize: "1.25rem",
+                      color: ivData.put_call_skew > 0 ? "#ff7134" : "#36bb80",
+                    }}
+                  >
+                    {ivData.put_call_skew > 0 ? "+" : ""}
+                    {fmt(ivData.put_call_skew * 100, 2)}%
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+              <Card sx={{ height: "100%" }}>
+                <CardContent sx={{ pb: "16px !important" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                  >
+                    IV-RV Spread
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                  >
+                    波动率风险溢价
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      fontSize: "1.25rem",
+                      color: ivData.iv_rv_spread > 0 ? "#fdbc2a" : "#3b89ff",
+                    }}
+                  >
+                    {ivData.iv_rv_spread > 0 ? "+" : ""}
+                    {fmt(ivData.iv_rv_spread * 100, 2)}%
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 700, mb: 2, fontSize: "0.85rem" }}
+              >
+                IV Skew · 波动率微笑
+              </Typography>
+              <Box sx={{ display: "flex", gap: 2, mb: 1.5 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box
+                    sx={{
+                      width: 24,
+                      height: 3,
+                      borderRadius: 2,
+                      bgcolor: "#36bb80",
+                    }}
+                  />
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                  >
+                    Calls 认购
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box
+                    sx={{
+                      width: 24,
+                      height: 3,
+                      borderRadius: 2,
+                      bgcolor: "#ff7134",
+                    }}
+                  />
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                  >
+                    Puts 认沽
+                  </Typography>
+                </Box>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary", ml: "auto" }}
+                >
+                  X: Strike · Y: IV%
+                </Typography>
+              </Box>
+              {callPoints.length === 0 && putPoints.length === 0 ? (
+                <Alert severity="info">No skew data available</Alert>
+              ) : (
+                <IVSkewChart callPoints={callPoints} putPoints={putPoints} />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 700, mb: 2, fontSize: "0.85rem" }}
+              >
+                IV Term Structure · 期限结构
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", display: "block", mb: 1.5 }}
+              >
+                X: DTE (days to expiration) · Y: ATM IV%
+              </Typography>
+              {ivData.term_structure.length === 0 ? (
+                <Alert severity="info">No term structure data available</Alert>
+              ) : (
+                <IVTermStructureChart points={ivData.term_structure} />
+              )}
+            </CardContent>
+          </Card>
+
+          {ivData.hv_points.length > 0 && (
+            <Box>
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 700, mb: 2, fontSize: "0.85rem" }}
+              >
+                Historical Volatility Comparison · 历史波动率对比
+              </Typography>
+              <Grid container spacing={2}>
+                {ivData.hv_points.map((hv) => {
+                  const hvPct = hv.realized_vol * 100;
+                  const atmPct = ivData.current_atm_iv * 100;
+                  const diff = atmPct - hvPct;
+                  return (
+                    <Grid key={hv.window_days} size={{ xs: 6, sm: 4, md: 3 }}>
+                      <Card sx={{ height: "100%" }}>
+                        <CardContent sx={{ pb: "16px !important" }}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "flex-start",
+                              mb: 1,
+                            }}
+                          >
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: "text.secondary",
+                                display: "block",
+                              }}
+                            >
+                              {hv.label}
+                            </Typography>
+                            <Chip
+                              label={
+                                diff > 0
+                                  ? `IV +${fmt(diff, 1)}%`
+                                  : `IV ${fmt(diff, 1)}%`
+                              }
+                              size="small"
+                              sx={{
+                                fontSize: "0.65rem",
+                                height: 18,
+                                bgcolor:
+                                  diff > 0
+                                    ? "rgba(253,188,42,0.15)"
+                                    : "rgba(54,187,128,0.15)",
+                                color: diff > 0 ? "#d49a14" : "#36bb80",
+                                border: `1px solid ${diff > 0 ? "rgba(253,188,42,0.3)" : "rgba(54,187,128,0.3)"}`,
+                              }}
+                            />
+                          </Box>
+                          <Typography
+                            variant="h6"
+                            sx={{
+                              fontFamily: "var(--font-geist-mono)",
+                              fontWeight: 700,
+                              fontSize: "1.25rem",
+                              color: "#8899aa",
+                            }}
+                          >
+                            {fmt(hvPct, 1)}%
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{ color: "text.secondary" }}
+                          >
+                            ATM IV:{" "}
+                            <Box
+                              component="span"
+                              sx={{
+                                fontFamily: "var(--font-geist-mono)",
+                                color: "#3b89ff",
+                              }}
+                            >
+                              {fmt(atmPct, 1)}%
+                            </Box>
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            </Box>
+          )}
+        </>
+      )}
+
+      {!loading && ivData?.error && (
+        <Alert severity="warning">{ivData.error}</Alert>
+      )}
+
+      {!loading && !ivData && selectedSymbol && !error && (
+        <Alert severity="info">正在等待数据 · Waiting for IV data</Alert>
+      )}
+    </Box>
+  );
+}
+
 export default function OptionsPage() {
   return (
     <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, py: 4 }}>
@@ -1897,7 +2597,7 @@ export default function OptionsPage() {
         </Typography>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
           Options Tools — Expirations, Chain, Backtest Simulator, Greeks
-          Calculator
+          Calculator, IV Analysis
         </Typography>
       </Box>
 
@@ -1905,6 +2605,8 @@ export default function OptionsPage() {
       <OptionsChainSection />
       <BacktestSimulator />
       <GreeksCalculator />
+      <Divider sx={{ my: 4 }} />
+      <IVAnalysisSection />
     </Box>
   );
 }

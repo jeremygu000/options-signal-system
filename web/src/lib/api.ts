@@ -12,6 +12,7 @@ import type {
   BacktestResponse,
   GreeksRequest,
   GreeksResponse,
+  IVAnalysisResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8300";
@@ -113,6 +114,10 @@ export function calculateGreeks(req: GreeksRequest): Promise<GreeksResponse> {
   });
 }
 
+export function fetchIVAnalysis(symbol: string): Promise<IVAnalysisResponse> {
+  return fetcher<IVAnalysisResponse>(`/api/v1/iv/analysis/${symbol}`);
+}
+
 export interface InterpretBacktestPayload {
   symbol: string;
   strategy: string;
@@ -143,6 +148,7 @@ export async function interpretBacktest(
   let buffer = "";
 
   for (;;) {
+    // oxlint-disable-next-line no-await-in-loop -- sequential stream reads are intentional
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });

@@ -142,3 +142,41 @@ class OptionsChainDetail(BaseModel):
     calls_count: int = 0
     puts_count: int = 0
     contracts: list[OptionsContract] = Field(default_factory=list)
+
+
+# ── IV Analysis models ───────────────────────────────────────────────
+
+
+class IVSkewPointModel(BaseModel):
+    strike: float
+    implied_volatility: float
+    option_type: str
+    moneyness: float  # strike / spot
+
+
+class IVTermPointModel(BaseModel):
+    expiration: str
+    dte_days: int
+    atm_iv: float
+
+
+class HVPointModel(BaseModel):
+    window_days: int
+    realized_vol: float  # annualised decimal, e.g. 0.25 = 25%
+    label: str
+
+
+class IVAnalysisResponse(BaseModel):
+    symbol: str
+    spot_price: float = 0.0
+    current_atm_iv: float = 0.0
+    iv_rank: float = 0.0
+    iv_percentile: float = 0.0
+    iv_high_52w: float = 0.0
+    iv_low_52w: float = 0.0
+    skew_points: list[IVSkewPointModel] = Field(default_factory=list)
+    put_call_skew: float = 0.0
+    term_structure: list[IVTermPointModel] = Field(default_factory=list)
+    hv_points: list[HVPointModel] = Field(default_factory=list)
+    iv_rv_spread: float = 0.0
+    error: str | None = None
