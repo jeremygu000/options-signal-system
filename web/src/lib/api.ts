@@ -37,6 +37,7 @@ import type {
   ClosePositionRequest,
   PortfolioHistoryRequest,
   PortfolioHistoryResponse,
+  FundamentalAnalysisResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8400";
@@ -503,4 +504,12 @@ export function fetchPortfolioHistory(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
   });
+}
+
+export function fetchFundamentalAnalysis(
+  symbol: string,
+): Promise<FundamentalAnalysisResponse> {
+  return fetcher<FundamentalAnalysisResponse>(
+    `/api/v1/fundamentals/${encodeURIComponent(symbol)}`,
+  );
 }

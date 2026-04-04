@@ -20,6 +20,7 @@ import ExploreIcon from "@mui/icons-material/Explore";
 import FolderSpecialIcon from "@mui/icons-material/FolderSpecial";
 import BarChartIcon from "@mui/icons-material/BarChart";
 import ShowChartIcon from "@mui/icons-material/ShowChart";
+import InsightsIcon from "@mui/icons-material/Insights";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -66,6 +67,12 @@ const NAV_ITEMS = [
     label: "交易终端",
     sublabel: "Broker",
     Icon: ShowChartIcon,
+  },
+  {
+    href: "/fundamentals",
+    label: "基本面",
+    sublabel: "Fundamentals",
+    Icon: InsightsIcon,
   },
 ];
 

@@ -45,7 +45,7 @@
 | Implied Volatility | ✅ IV percentile | ✅ | ✅ | ❌ | ✅ | ❌ |
 | Options Chain Data | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
 | Multi-Leg Strategies | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
-| Fundamental Data | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Fundamental Data | ✅ yfinance | ✅ | ✅ | ❌ | ❌ | ❌ |
 | ML/AI Enhancement | ✅ 5 modules | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Symbol Discovery | ✅ DuckDB | ✅ | ✅ | ❌ | ❌ | ❌ |
 | WebSocket Real-time | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
@@ -78,6 +78,7 @@
 | 6 | ~~No Multi-Leg Strategy Support~~ | ✅ Iron Condor, Spreads, Straddle, Strangle, Butterfly | `app/multi_leg.py` |
 | 7 | ~~No Position Management / P&L~~ | ✅ Full CRUD position tracking + portfolio summary | `app/positions.py` |
 | 8 | ~~No ML/Statistical Enhancement~~ | ✅ 5 modules — signal scoring, regime classification, LLM analysis | `app/ml/` |
+| 9 | ~~No Fundamental Data~~ | ✅ Valuation, analyst ratings, price targets, earnings surprises, short interest, income highlights | `app/fundamental.py` |
 
 ### 🔴 High Priority Gaps
 
@@ -91,7 +92,6 @@
 
 | # | Gap | Impact |
 |---|-----|--------|
-| 9 | No fundamental data (earnings, analyst ratings) | Cannot blend fundamental + technical |
 | 10 | No WebSocket real-time push | Frontend must poll |
 | 11 | No Put/Call Ratio signal | Missing market sentiment quantification |
 | 12 | No unusual options volume detection | Missing "smart money" signals |

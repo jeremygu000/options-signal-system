@@ -579,3 +579,86 @@ class PortfolioHistoryResponse(BaseModel):
     profit_loss: list[float] = Field(default_factory=list)
     profit_loss_pct: list[float] = Field(default_factory=list)
     base_value: float = 0.0
+
+
+# ── Fundamental analysis models ──────────────────────────────────────
+
+
+class ValuationMetricsModel(BaseModel):
+    market_cap: float = 0.0
+    trailing_pe: float = 0.0
+    forward_pe: float = 0.0
+    trailing_eps: float = 0.0
+    forward_eps: float = 0.0
+    price_to_book: float = 0.0
+    price_to_sales: float = 0.0
+    peg_ratio: float = 0.0
+    enterprise_value: float = 0.0
+    ev_to_ebitda: float = 0.0
+    dividend_yield: float = 0.0  # decimal, e.g. 0.02 = 2%
+    beta: float = 0.0
+
+
+class AnalystRatingModel(BaseModel):
+    recommendation_key: str = ""
+    recommendation_mean: float = 0.0  # 1.0 = strong buy, 5.0 = strong sell
+    strong_buy: int = 0
+    buy: int = 0
+    hold: int = 0
+    sell: int = 0
+    strong_sell: int = 0
+    number_of_analysts: int = 0
+
+
+class PriceTargetModel(BaseModel):
+    current: float = 0.0
+    low: float = 0.0
+    high: float = 0.0
+    mean: float = 0.0
+    median: float = 0.0
+    number_of_analysts: int = 0
+
+
+class EarningsSurpriseModel(BaseModel):
+    date: str
+    eps_estimate: float = 0.0
+    eps_actual: float = 0.0
+    surprise_pct: float = 0.0
+
+
+class UpgradeDowngradeModel(BaseModel):
+    date: str
+    firm: str
+    to_grade: str
+    from_grade: str
+    action: str
+
+
+class ShortInterestModel(BaseModel):
+    short_ratio: float = 0.0  # days to cover
+    short_pct_of_float: float = 0.0  # decimal, e.g. 0.05 = 5%
+    shares_short: int = 0
+
+
+class IncomeHighlightsModel(BaseModel):
+    revenue: float = 0.0
+    revenue_growth: float = 0.0
+    gross_margin: float = 0.0
+    operating_margin: float = 0.0
+    profit_margin: float = 0.0
+    earnings_growth: float = 0.0
+
+
+class FundamentalAnalysisResponse(BaseModel):
+    symbol: str
+    spot_price: float = 0.0
+    currency: str = "USD"
+    valuation: ValuationMetricsModel = Field(default_factory=ValuationMetricsModel)
+    analyst_rating: AnalystRatingModel = Field(default_factory=AnalystRatingModel)
+    price_target: PriceTargetModel = Field(default_factory=PriceTargetModel)
+    short_interest: ShortInterestModel = Field(default_factory=ShortInterestModel)
+    income: IncomeHighlightsModel = Field(default_factory=IncomeHighlightsModel)
+    earnings_surprises: list[EarningsSurpriseModel] = Field(default_factory=list)
+    upgrades_downgrades: list[UpgradeDowngradeModel] = Field(default_factory=list)
+    next_earnings_date: str | None = None
+    error: str | None = None

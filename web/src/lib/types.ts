@@ -576,6 +576,88 @@ export interface PortfolioHistoryResponse {
   base_value: number;
 }
 
+// ── Fundamental analysis types ───────────────────────────────────────
+
+export interface ValuationMetrics {
+  market_cap: number;
+  trailing_pe: number;
+  forward_pe: number;
+  trailing_eps: number;
+  forward_eps: number;
+  price_to_book: number;
+  price_to_sales: number;
+  peg_ratio: number;
+  enterprise_value: number;
+  ev_to_ebitda: number;
+  dividend_yield: number;
+  beta: number;
+}
+
+export interface AnalystRating {
+  recommendation_key: string;
+  recommendation_mean: number;
+  strong_buy: number;
+  buy: number;
+  hold: number;
+  sell: number;
+  strong_sell: number;
+  number_of_analysts: number;
+}
+
+export interface PriceTarget {
+  current: number;
+  low: number;
+  high: number;
+  mean: number;
+  median: number;
+  number_of_analysts: number;
+}
+
+export interface EarningsSurprise {
+  date: string;
+  eps_estimate: number;
+  eps_actual: number;
+  surprise_pct: number;
+}
+
+export interface UpgradeDowngrade {
+  date: string;
+  firm: string;
+  to_grade: string;
+  from_grade: string;
+  action: string;
+}
+
+export interface ShortInterest {
+  short_ratio: number;
+  short_pct_of_float: number;
+  shares_short: number;
+}
+
+export interface IncomeHighlights {
+  revenue: number;
+  revenue_growth: number;
+  gross_margin: number;
+  operating_margin: number;
+  profit_margin: number;
+  earnings_growth: number;
+}
+
+export interface FundamentalAnalysisResponse {
+  symbol: string;
+  spot_price: number;
+  currency: string;
+  valuation: ValuationMetrics;
+  analyst_rating: AnalystRating;
+  price_target: PriceTarget;
+  short_interest: ShortInterest;
+  income: IncomeHighlights;
+  earnings_surprises: EarningsSurprise[];
+  upgrades_downgrades: UpgradeDowngrade[];
+  next_earnings_date: string | null;
+  error: string | null;
+}
+
 // ── Symbol Discovery types ──────────────────────────────────────────
 
 export interface SymbolMeta {

@@ -33,6 +33,7 @@ from app.data_provider import (
     has_parquet_data,
 )
 from app.database import close_db, get_session, init_db
+from app.fundamental import FundamentalAnalysisResult, compute_fundamental_analysis
 from app.greeks import GreeksResult, calculate_greeks
 from app.iv_analysis import IVAnalysisResult, compute_iv_analysis
 from app.multi_leg import OptionLeg, analyze_multi_leg
@@ -40,11 +41,15 @@ from app.indicators import atr, prev_day_high, prev_day_low, rolling_high, rolli
 from app.market_regime import MarketRegimeEngine
 from app.models import (
     AggregatedGreeksModel,
+    AnalystRatingModel,
     BacktestMetrics,
     BacktestRequest,
     BacktestResponse,
+    EarningsSurpriseModel,
     EnhancedSignal,
+    FundamentalAnalysisResponse,
     HVPointModel,
+    IncomeHighlightsModel,
     IVAnalysisResponse,
     IVSkewPointModel,
     IVTermPointModel,
@@ -61,11 +66,15 @@ from app.models import (
     PositionCreate,
     PositionResponse,
     PositionUpdate,
+    PriceTargetModel,
     Signal,
     SignalLevel,
+    ShortInterestModel,
     StrategyGroupResponse,
     TrainingRequest,
     TrainingStatusResponse,
+    UpgradeDowngradeModel,
+    ValuationMetricsModel,
     SymbolMetaResponse,
     PaginatedSymbolResult,
     SignalBacktestRequest,
@@ -712,6 +721,87 @@ async def iv_analysis(symbol: str) -> IVAnalysisResponse:
             for h in result.hv_points
         ],
         iv_rv_spread=result.iv_rv_spread,
+        error=result.error,
+    )
+
+
+@app.get("/api/v1/fundamentals/{symbol}", response_model=FundamentalAnalysisResponse, tags=["options"])
+@app.get("/api/fundamentals/{symbol}", response_model=FundamentalAnalysisResponse, include_in_schema=False)
+async def fundamental_analysis(symbol: str) -> FundamentalAnalysisResponse:
+    upper_symbol = symbol.upper()
+
+    loop = asyncio.get_event_loop()
+    result: FundamentalAnalysisResult = await loop.run_in_executor(None, compute_fundamental_analysis, upper_symbol)
+
+    return FundamentalAnalysisResponse(
+        symbol=result.symbol,
+        spot_price=result.spot_price,
+        currency=result.currency,
+        valuation=ValuationMetricsModel(
+            market_cap=result.valuation.market_cap,
+            trailing_pe=result.valuation.trailing_pe,
+            forward_pe=result.valuation.forward_pe,
+            trailing_eps=result.valuation.trailing_eps,
+            forward_eps=result.valuation.forward_eps,
+            price_to_book=result.valuation.price_to_book,
+            price_to_sales=result.valuation.price_to_sales,
+            peg_ratio=result.valuation.peg_ratio,
+            enterprise_value=result.valuation.enterprise_value,
+            ev_to_ebitda=result.valuation.ev_to_ebitda,
+            dividend_yield=result.valuation.dividend_yield,
+            beta=result.valuation.beta,
+        ),
+        analyst_rating=AnalystRatingModel(
+            recommendation_key=result.analyst_rating.recommendation_key,
+            recommendation_mean=result.analyst_rating.recommendation_mean,
+            strong_buy=result.analyst_rating.strong_buy,
+            buy=result.analyst_rating.buy,
+            hold=result.analyst_rating.hold,
+            sell=result.analyst_rating.sell,
+            strong_sell=result.analyst_rating.strong_sell,
+            number_of_analysts=result.analyst_rating.number_of_analysts,
+        ),
+        price_target=PriceTargetModel(
+            current=result.price_target.current,
+            low=result.price_target.low,
+            high=result.price_target.high,
+            mean=result.price_target.mean,
+            median=result.price_target.median,
+            number_of_analysts=result.price_target.number_of_analysts,
+        ),
+        short_interest=ShortInterestModel(
+            short_ratio=result.short_interest.short_ratio,
+            short_pct_of_float=result.short_interest.short_pct_of_float,
+            shares_short=result.short_interest.shares_short,
+        ),
+        income=IncomeHighlightsModel(
+            revenue=result.income.revenue,
+            revenue_growth=result.income.revenue_growth,
+            gross_margin=result.income.gross_margin,
+            operating_margin=result.income.operating_margin,
+            profit_margin=result.income.profit_margin,
+            earnings_growth=result.income.earnings_growth,
+        ),
+        earnings_surprises=[
+            EarningsSurpriseModel(
+                date=e.date,
+                eps_estimate=e.eps_estimate,
+                eps_actual=e.eps_actual,
+                surprise_pct=e.surprise_pct,
+            )
+            for e in result.earnings_surprises
+        ],
+        upgrades_downgrades=[
+            UpgradeDowngradeModel(
+                date=u.date,
+                firm=u.firm,
+                to_grade=u.to_grade,
+                from_grade=u.from_grade,
+                action=u.action,
+            )
+            for u in result.upgrades_downgrades
+        ],
+        next_earnings_date=result.next_earnings_date,
         error=result.error,
     )
 
