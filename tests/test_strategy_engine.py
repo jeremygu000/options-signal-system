@@ -55,6 +55,15 @@ def _risk_off_regime() -> MarketRegimeResult:
     return MarketRegimeResult(regime=MarketRegime.RISK_OFF, reasons=["test"])
 
 
+# Bias map matching the original config defaults
+_DEFAULT_BIAS_MAP = {
+    "USO": "short",
+    "XOM": "short",
+    "XLE": "short",
+    "CRM": "long",
+}
+
+
 class TestShortSetup:
     @patch("app.strategy_engine.get_intraday")
     @patch("app.strategy_engine.get_daily")
@@ -62,7 +71,7 @@ class TestShortSetup:
         mock_daily.return_value = _make_daily(30)
         mock_intraday.return_value = _make_intraday()
 
-        engine = StrategyEngine()
+        engine = StrategyEngine(bias_map=_DEFAULT_BIAS_MAP)
         signal = engine.evaluate_symbol("USO", _neutral_regime())
         assert signal.bias == Bias.SHORT
         assert signal.symbol == "USO"
@@ -74,7 +83,7 @@ class TestShortSetup:
         mock_daily.return_value = _make_daily(30)
         mock_intraday.return_value = _make_intraday()
 
-        engine = StrategyEngine()
+        engine = StrategyEngine(bias_map=_DEFAULT_BIAS_MAP)
         neutral_sig = engine.evaluate_symbol("USO", _neutral_regime())
         risk_on_sig = engine.evaluate_symbol("USO", _risk_on_regime())
         assert risk_on_sig.score < neutral_sig.score
@@ -85,7 +94,7 @@ class TestShortSetup:
         mock_daily.return_value = pd.DataFrame()
         mock_intraday.return_value = pd.DataFrame()
 
-        engine = StrategyEngine()
+        engine = StrategyEngine(bias_map=_DEFAULT_BIAS_MAP)
         signal = engine.evaluate_symbol("USO", _neutral_regime())
         assert signal.level == SignalLevel.NONE
         assert "数据不足" in signal.action
@@ -98,7 +107,7 @@ class TestLongSetup:
         mock_daily.return_value = _make_daily(30, base=250.0)
         mock_intraday.return_value = pd.DataFrame()
 
-        engine = StrategyEngine()
+        engine = StrategyEngine(bias_map=_DEFAULT_BIAS_MAP)
         signal = engine.evaluate_symbol("CRM", _neutral_regime())
         assert signal.bias == Bias.LONG
         assert signal.symbol == "CRM"
@@ -109,7 +118,7 @@ class TestLongSetup:
         mock_daily.return_value = _make_daily(30, base=250.0)
         mock_intraday.return_value = pd.DataFrame()
 
-        engine = StrategyEngine()
+        engine = StrategyEngine(bias_map=_DEFAULT_BIAS_MAP)
         neutral_sig = engine.evaluate_symbol("CRM", _neutral_regime())
         risk_off_sig = engine.evaluate_symbol("CRM", _risk_off_regime())
         assert risk_off_sig.score < neutral_sig.score

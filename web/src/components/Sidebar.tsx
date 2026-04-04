@@ -23,6 +23,7 @@ import ShowChartIcon from "@mui/icons-material/ShowChart";
 import InsightsIcon from "@mui/icons-material/Insights";
 import DonutSmallIcon from "@mui/icons-material/DonutSmall";
 import BubbleChartIcon from "@mui/icons-material/BubbleChart";
+import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -40,6 +41,12 @@ const NAV_ITEMS = [
     label: "标的发现",
     sublabel: "Discover",
     Icon: ExploreIcon,
+  },
+  {
+    href: "/watchlist",
+    label: "自选列表",
+    sublabel: "Watchlist",
+    Icon: PlaylistAddCheckIcon,
   },
   {
     href: "/compare",

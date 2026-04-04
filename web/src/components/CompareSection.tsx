@@ -11,11 +11,15 @@ import Chip from "@mui/material/Chip";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import SectionHeader from "@/components/SectionHeader";
-import { fetchCompare, fetchSymbols } from "@/lib/api";
+import {
+  fetchCompare,
+  fetchSymbols,
+  fetchActiveWatchlistSymbols,
+} from "@/lib/api";
 import type { CompareResponse, SymbolInfo } from "@/lib/types";
 import { useThemeMode } from "./ThemeProvider";
 
-const DEFAULT_TICKERS = ["QQQ", "USO", "XOM", "XLE", "CRM"];
+const FALLBACK_TICKERS = ["QQQ", "USO", "XOM", "XLE", "CRM"];
 const PALETTE = [
   "#3b89ff",
   "#36bb80",
@@ -120,7 +124,7 @@ function CompareChart({
 export default function CompareSection() {
   const [_allSymbols, setAllSymbols] = useState<SymbolInfo[]>([]);
   const [selectedTickers, setSelectedTickers] =
-    useState<string[]>(DEFAULT_TICKERS);
+    useState<string[]>(FALLBACK_TICKERS);
   const [data, setData] = useState<CompareResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +133,16 @@ export default function CompareSection() {
   useEffect(() => {
     fetchSymbols()
       .then(setAllSymbols)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchActiveWatchlistSymbols()
+      .then((symbols) => {
+        if (symbols.length > 0) {
+          setSelectedTickers(symbols.slice(0, 10));
+        }
+      })
       .catch(() => {});
   }, []);
 

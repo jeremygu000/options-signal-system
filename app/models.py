@@ -750,3 +750,51 @@ class UnusualVolumeResponse(BaseModel):
     cluster: ClusterSummaryModel | None = None
     expirations_scanned: int = 0
     error: str | None = None
+
+
+# ── Watchlist ────────────────────────────────────────────────────────
+
+
+class WatchlistItemCreate(BaseModel):
+    symbol: str
+    sector: str = ""
+    bias: str = "auto"
+    sort_order: int = 0
+
+
+class WatchlistItemResponse(BaseModel):
+    id: str
+    watchlist_id: str
+    symbol: str
+    sector: str
+    bias: str
+    sort_order: int
+    created_at: datetime
+
+
+class WatchlistCreate(BaseModel):
+    name: str
+    description: str = ""
+    is_active: bool = False
+    items: list[WatchlistItemCreate] = Field(default_factory=list)
+
+
+class WatchlistUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+
+class WatchlistResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    is_active: bool
+    items: list[WatchlistItemResponse] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class WatchlistItemUpdate(BaseModel):
+    sector: str | None = None
+    bias: str | None = None
+    sort_order: int | None = None

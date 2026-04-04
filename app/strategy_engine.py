@@ -12,7 +12,6 @@ from datetime import datetime
 
 import pandas as pd
 
-from app.config import settings
 from app.data_provider import get_daily, get_intraday
 from app.indicators import (
     atr,
@@ -50,11 +49,15 @@ LONG_STRUCTURES = {
 
 class StrategyEngine:
 
+    def __init__(self, bias_map: dict[str, str] | None = None) -> None:
+        self._bias_map = bias_map or {}
+
     def evaluate_symbol(self, symbol: str, regime: MarketRegimeResult) -> Signal:
         upper = symbol.upper()
-        if upper in settings.short_symbols:
+        bias_label = self._bias_map.get(upper, "auto")
+        if bias_label == "short":
             return self._short_setup(symbol, regime)
-        elif upper in settings.long_symbols:
+        elif bias_label == "long":
             return self._long_setup(symbol, regime)
         else:
             bias = self._auto_detect_bias(symbol)
@@ -63,11 +66,11 @@ class StrategyEngine:
             return self._short_setup(symbol, regime)
 
     def evaluate_with_data(self, symbol: str, regime: MarketRegimeResult, daily: pd.DataFrame) -> Signal:
-        """Evaluate using pre-sliced data (for backtesting — no intraday)."""
         upper = symbol.upper()
-        if upper in settings.short_symbols:
+        bias_label = self._bias_map.get(upper, "auto")
+        if bias_label == "short":
             return self._short_setup(symbol, regime, daily=daily, intraday=pd.DataFrame())
-        elif upper in settings.long_symbols:
+        elif bias_label == "long":
             return self._long_setup(symbol, regime, daily=daily, intraday=pd.DataFrame())
         else:
             bias = self._auto_detect_bias_from_data(daily)

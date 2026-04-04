@@ -82,6 +82,7 @@ async def init_db() -> None:
 
     # Import models so Base.metadata knows about them
     import app.position_models  # noqa: F401
+    import app.watchlist_models  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

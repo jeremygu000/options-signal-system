@@ -236,10 +236,7 @@ class TestStrategyEngineAutoDetect:
         with (
             patch("app.strategy_engine.get_daily", return_value=daily),
             patch("app.strategy_engine.get_intraday", return_value=intraday),
-            patch("app.strategy_engine.settings") as mock_settings,
         ):
-            mock_settings.short_symbols = set()
-            mock_settings.long_symbols = set()
             signal = engine.evaluate_symbol("NEWSTOCK", regime)
 
         from app.models import Bias
@@ -278,14 +275,11 @@ class TestStrategyEngineAutoDetect:
 
         regime = MarketRegimeResult(regime=MarketRegime.NEUTRAL, reasons=["test"])
 
-        engine = StrategyEngine()
+        engine = StrategyEngine(bias_map={"NEWSTOCK": "short"})
         with (
             patch("app.strategy_engine.get_daily", return_value=daily),
             patch("app.strategy_engine.get_intraday", return_value=intraday),
-            patch("app.strategy_engine.settings") as mock_settings,
         ):
-            mock_settings.short_symbols = {"NEWSTOCK"}
-            mock_settings.long_symbols = set()
             signal = engine.evaluate_symbol("NEWSTOCK", regime)
 
         from app.models import Bias

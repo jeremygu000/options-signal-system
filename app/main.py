@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 
 import typer
 
 from app.config import settings
+from app.database import get_session, init_db
 from app.logging_config import setup_logging
 from app.market_regime import MarketRegimeEngine
 from app.models import SignalLevel
@@ -15,10 +17,23 @@ from app.notifier import create_notifier
 from app.report import build_report, build_telegram_message
 from app.strategy_engine import StrategyEngine
 from app.utils import is_market_open
+from app.watchlist import get_active_bias_map, get_active_symbols, seed_default_watchlist
 
 logger = logging.getLogger(__name__)
 
 cli = typer.Typer(help="期权信号系统")
+
+
+def _load_watchlist_data() -> tuple[list[str], dict[str, str]]:
+    async def _inner() -> tuple[list[str], dict[str, str]]:
+        await init_db()
+        async with get_session() as session:
+            await seed_default_watchlist(session)
+            symbols = await get_active_symbols(session)
+            bias_map = await get_active_bias_map(session)
+            return symbols, bias_map
+
+    return asyncio.run(_inner())
 
 
 def run_once(always_run: bool = False) -> None:
@@ -30,11 +45,12 @@ def run_once(always_run: bool = False) -> None:
         qqq_symbol=settings.market_index,
         vix_symbol=settings.volatility_index,
     )
-    strategy_engine = StrategyEngine()
+    symbols, bias_map = _load_watchlist_data()
+    strategy_engine = StrategyEngine(bias_map=bias_map)
     notifier = create_notifier()
 
     regime = regime_engine.evaluate()
-    signals = [strategy_engine.evaluate_symbol(sym, regime) for sym in settings.symbols]
+    signals = [strategy_engine.evaluate_symbol(sym, regime) for sym in symbols]
 
     report = build_report(regime, signals)
     print(report)

@@ -98,6 +98,12 @@ from app.models import (
     UnusualStrikeModel,
     ClusterSummaryModel,
     UnusualVolumeResponse,
+    WatchlistCreate,
+    WatchlistItemCreate,
+    WatchlistItemResponse,
+    WatchlistItemUpdate,
+    WatchlistResponse,
+    WatchlistUpdate,
 )
 from app.options_data import clear_chain_cache, get_expirations, get_options_chain, get_options_chain_multi
 from app.options_source import get_options_source
@@ -121,6 +127,20 @@ from app.signal_backtest import run_signal_backtest, run_walk_forward
 from app.broker import AlpacaBroker, get_broker
 from app.strategy_engine import StrategyEngine
 from app.symbol_discovery import build_metadata_index, clear_discovery_cache, search_symbols
+from app.watchlist import (
+    activate_watchlist,
+    add_item,
+    create_watchlist,
+    delete_watchlist,
+    get_active_bias_map,
+    get_active_symbols,
+    get_watchlist,
+    list_watchlists,
+    remove_item,
+    seed_default_watchlist,
+    update_item,
+    update_watchlist,
+)
 from app.ws import broadcaster, handle_client_message, manager as ws_manager
 from app.ml.llm_analyzer import stream_signal_analysis
 from app.ml.pipeline import TrainingStatus, load_status, run_training_pipeline
@@ -130,7 +150,12 @@ from app.utils import now_ny
 
 logger = logging.getLogger(__name__)
 
-CORE_SYMBOLS: set[str] = {s.upper() for s in [settings.market_index, settings.volatility_index, *settings.symbols]}
+CORE_SYMBOLS: set[str] = {settings.market_index.upper(), settings.volatility_index.upper()}
+
+
+async def _get_watchlist_symbols() -> list[str]:
+    async with get_session() as session:
+        return await get_active_symbols(session)
 
 
 # ── Response models ──────────────────────────────────────────────────
@@ -229,9 +254,10 @@ def get_regime_engine() -> MarketRegimeEngine:
     )
 
 
-@lru_cache(maxsize=1)
-def get_strategy_engine() -> StrategyEngine:
-    return StrategyEngine()
+async def _get_strategy_engine() -> StrategyEngine:
+    async with get_session() as session:
+        bias_map = await get_active_bias_map(session)
+    return StrategyEngine(bias_map=bias_map)
 
 
 @lru_cache(maxsize=1)
@@ -262,7 +288,7 @@ def validate_days(days: int = Query(default=90, ge=1, le=365)) -> int:
 ValidSymbol = Annotated[str, Depends(validate_symbol)]
 ValidDays = Annotated[int, Depends(validate_days)]
 RegimeEngine = Annotated[MarketRegimeEngine, Depends(get_regime_engine)]
-StratEngine = Annotated[StrategyEngine, Depends(get_strategy_engine)]
+StratEngine = Annotated[StrategyEngine, Depends(_get_strategy_engine)]
 MLRegime = Annotated[RegimeClassifier, Depends(get_regime_classifier)]
 MLScorer = Annotated[SignalScorer, Depends(get_signal_scorer)]
 
@@ -276,14 +302,14 @@ MLScorer = Annotated[SignalScorer, Depends(get_signal_scorer)]
 async def _ws_signals_provider() -> dict[str, Any] | None:
     loop = asyncio.get_event_loop()
     engine = get_regime_engine()
-    strat = get_strategy_engine()
+    strat = await _get_strategy_engine()
     regime = await loop.run_in_executor(None, engine.evaluate)
 
     async def _eval(sym: str) -> dict[str, Any]:
         sig = await loop.run_in_executor(None, strat.evaluate_symbol, sym, regime)
         return sig.model_dump()
 
-    signals = await asyncio.gather(*(_eval(s) for s in settings.symbols))
+    signals = await asyncio.gather(*(_eval(s) for s in await _get_watchlist_symbols()))
     return {
         "regime": regime.model_dump(),
         "signals": list(signals),
@@ -334,6 +360,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         logger.warning("Parquet data directory does not exist: %s", settings.parquet_dir)
 
     await init_db()
+    async with get_session() as session:
+        await seed_default_watchlist(session)
+    active_symbols = await _get_watchlist_symbols()
     broadcaster.register("signals", _ws_signals_provider)
     broadcaster.register("regime", _ws_regime_provider)
     broadcaster.register("broker", _ws_broker_provider)
@@ -344,14 +373,13 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         extra={
             "port": 8400,
             "auth_enabled": settings.api_auth_enabled,
-            "symbols": len(settings.symbols),
+            "symbols": len(active_symbols),
             "log_format": "json" if log_json else "console",
         },
     )
     yield
     await broadcaster.stop()
     get_regime_engine.cache_clear()
-    get_strategy_engine.cache_clear()
     get_regime_classifier.cache_clear()
     get_signal_scorer.cache_clear()
     clear_data_cache()
@@ -370,6 +398,7 @@ tags_metadata = [
     {"name": "positions", "description": "Position management & portfolio"},
     {"name": "ml", "description": "ML-enhanced signals, regime & training"},
     {"name": "discovery", "description": "Symbol discovery & metadata"},
+    {"name": "watchlist", "description": "Watchlist management — create, edit, activate watchlists & items"},
     {"name": "broker", "description": "Alpaca broker integration — account, orders, positions, portfolio"},
     {"name": "websocket", "description": "Real-time push via WebSocket"},
 ]
@@ -422,7 +451,8 @@ async def request_middleware(request: Request, call_next: object) -> Response:
 @app.get("/api/health", response_model=HealthResponse, include_in_schema=False)
 async def health() -> HealthResponse:
     loop = asyncio.get_event_loop()
-    all_symbols = [settings.market_index, settings.volatility_index, *settings.symbols]
+    watchlist_syms = await _get_watchlist_symbols()
+    all_symbols = [settings.market_index, settings.volatility_index, *watchlist_syms]
 
     async def check_symbol(sym: str) -> tuple[str, bool]:
         df = await loop.run_in_executor(None, get_daily, sym, None)
@@ -460,7 +490,8 @@ async def get_metrics(_api_key: ApiKey) -> dict[str, object]:
 @app.get("/api/symbols", response_model=list[SymbolInfo], include_in_schema=False)
 async def list_symbols() -> list[SymbolInfo]:
     loop = asyncio.get_event_loop()
-    all_symbols = [settings.market_index, settings.volatility_index, *settings.symbols]
+    watchlist_syms = await _get_watchlist_symbols()
+    all_symbols = [settings.market_index, settings.volatility_index, *watchlist_syms]
 
     async def fetch_info(sym: str) -> SymbolInfo:
         df = await loop.run_in_executor(None, get_daily, sym, None)
@@ -487,7 +518,7 @@ async def get_signals(regime_engine: RegimeEngine, strategy_engine: StratEngine)
     async def eval_sym(sym: str) -> Signal:
         return await loop.run_in_executor(None, strategy_engine.evaluate_symbol, sym, regime)
 
-    results = await asyncio.gather(*(eval_sym(s) for s in settings.symbols))
+    results = await asyncio.gather(*(eval_sym(s) for s in await _get_watchlist_symbols()))
     return list(results)
 
 
@@ -500,7 +531,7 @@ async def full_scan(regime_engine: RegimeEngine, strategy_engine: StratEngine) -
     async def eval_sym(sym: str) -> Signal:
         return await loop.run_in_executor(None, strategy_engine.evaluate_symbol, sym, regime)
 
-    signals = await asyncio.gather(*(eval_sym(s) for s in settings.symbols))
+    signals = await asyncio.gather(*(eval_sym(s) for s in await _get_watchlist_symbols()))
     return FullScanResponse(
         regime=regime,
         signals=list(signals),
@@ -1490,7 +1521,7 @@ async def get_enhanced_signals(
             combined_score=combined_score,
         )
 
-    results = await asyncio.gather(*(eval_enhanced(s) for s in settings.symbols))
+    results = await asyncio.gather(*(eval_enhanced(s) for s in await _get_watchlist_symbols()))
     return list(results)
 
 
@@ -1518,10 +1549,11 @@ async def get_ml_regime(regime_engine: RegimeEngine, ml_regime: MLRegime) -> MLR
 async def trigger_training(req: TrainingRequest, _api_key: ApiKey) -> TrainingStatusResponse:
     regime_clf = get_regime_classifier()
     scorer = get_signal_scorer()
+    symbols = await _get_watchlist_symbols()
 
     loop = asyncio.get_event_loop()
     status: TrainingStatus = await loop.run_in_executor(
-        None, run_training_pipeline, regime_clf, scorer, req.lookback_days
+        None, lambda: run_training_pipeline(regime_clf, scorer, req.lookback_days, symbols=symbols)
     )
 
     return TrainingStatusResponse(
@@ -1662,6 +1694,155 @@ async def get_all_metadata() -> list[SymbolMetaResponse]:
         )
         for m in index
     ]
+
+
+# ── Watchlist management endpoints ───────────────────────────────────
+
+
+def _watchlist_to_response(wl: object) -> WatchlistResponse:
+    from app.watchlist_models import Watchlist as WLModel
+
+    assert isinstance(wl, WLModel)
+    return WatchlistResponse(
+        id=wl.id,
+        name=wl.name,
+        description=wl.description,
+        is_active=wl.is_active,
+        items=[
+            WatchlistItemResponse(
+                id=item.id,
+                watchlist_id=item.watchlist_id,
+                symbol=item.symbol,
+                sector=item.sector,
+                bias=item.bias,
+                sort_order=item.sort_order,
+                created_at=item.created_at,
+            )
+            for item in wl.items
+        ],
+        created_at=wl.created_at,
+        updated_at=wl.updated_at,
+    )
+
+
+@app.get("/api/v1/watchlists", response_model=list[WatchlistResponse], tags=["watchlist"])
+async def list_watchlists_endpoint() -> list[WatchlistResponse]:
+    async with get_session() as session:
+        wls = await list_watchlists(session)
+        return [_watchlist_to_response(wl) for wl in wls]
+
+
+@app.post("/api/v1/watchlists", response_model=WatchlistResponse, tags=["watchlist"], status_code=201)
+async def create_watchlist_endpoint(req: WatchlistCreate) -> WatchlistResponse:
+    async with get_session() as session:
+        wl = await create_watchlist(session, name=req.name, description=req.description, is_active=req.is_active)
+        for idx, item_req in enumerate(req.items):
+            await add_item(
+                session,
+                wl.id,
+                symbol=item_req.symbol,
+                sector=item_req.sector,
+                bias=item_req.bias,
+                sort_order=item_req.sort_order or idx,
+            )
+        refreshed = await get_watchlist(session, wl.id)
+        assert refreshed is not None
+        return _watchlist_to_response(refreshed)
+
+
+@app.get("/api/v1/watchlists/{watchlist_id}", response_model=WatchlistResponse, tags=["watchlist"])
+async def get_watchlist_endpoint(watchlist_id: str) -> WatchlistResponse:
+    async with get_session() as session:
+        wl = await get_watchlist(session, watchlist_id)
+        if wl is None:
+            raise HTTPException(status_code=404, detail=f"Watchlist {watchlist_id} not found")
+        return _watchlist_to_response(wl)
+
+
+@app.put("/api/v1/watchlists/{watchlist_id}", response_model=WatchlistResponse, tags=["watchlist"])
+async def update_watchlist_endpoint(watchlist_id: str, req: WatchlistUpdate) -> WatchlistResponse:
+    async with get_session() as session:
+        wl = await update_watchlist(session, watchlist_id, name=req.name, description=req.description)
+        if wl is None:
+            raise HTTPException(status_code=404, detail=f"Watchlist {watchlist_id} not found")
+        return _watchlist_to_response(wl)
+
+
+@app.post("/api/v1/watchlists/{watchlist_id}/activate", response_model=WatchlistResponse, tags=["watchlist"])
+async def activate_watchlist_endpoint(watchlist_id: str) -> WatchlistResponse:
+    async with get_session() as session:
+        wl = await activate_watchlist(session, watchlist_id)
+        if wl is None:
+            raise HTTPException(status_code=404, detail=f"Watchlist {watchlist_id} not found")
+        return _watchlist_to_response(wl)
+
+
+@app.delete("/api/v1/watchlists/{watchlist_id}", tags=["watchlist"], status_code=204)
+async def delete_watchlist_endpoint(watchlist_id: str) -> None:
+    async with get_session() as session:
+        deleted = await delete_watchlist(session, watchlist_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Watchlist {watchlist_id} not found")
+
+
+@app.get("/api/v1/watchlists/active/symbols", response_model=list[str], tags=["watchlist"])
+async def get_active_watchlist_symbols() -> list[str]:
+    async with get_session() as session:
+        return await get_active_symbols(session)
+
+
+@app.post(
+    "/api/v1/watchlists/{watchlist_id}/items",
+    response_model=WatchlistItemResponse,
+    tags=["watchlist"],
+    status_code=201,
+)
+async def add_watchlist_item(watchlist_id: str, req: WatchlistItemCreate) -> WatchlistItemResponse:
+    async with get_session() as session:
+        item = await add_item(
+            session,
+            watchlist_id,
+            symbol=req.symbol,
+            sector=req.sector,
+            bias=req.bias,
+            sort_order=req.sort_order,
+        )
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"Watchlist {watchlist_id} not found")
+        return WatchlistItemResponse(
+            id=item.id,
+            watchlist_id=item.watchlist_id,
+            symbol=item.symbol,
+            sector=item.sector,
+            bias=item.bias,
+            sort_order=item.sort_order,
+            created_at=item.created_at,
+        )
+
+
+@app.put("/api/v1/watchlists/items/{item_id}", response_model=WatchlistItemResponse, tags=["watchlist"])
+async def update_watchlist_item(item_id: str, req: WatchlistItemUpdate) -> WatchlistItemResponse:
+    async with get_session() as session:
+        item = await update_item(session, item_id, sector=req.sector, bias=req.bias, sort_order=req.sort_order)
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"Watchlist item {item_id} not found")
+        return WatchlistItemResponse(
+            id=item.id,
+            watchlist_id=item.watchlist_id,
+            symbol=item.symbol,
+            sector=item.sector,
+            bias=item.bias,
+            sort_order=item.sort_order,
+            created_at=item.created_at,
+        )
+
+
+@app.delete("/api/v1/watchlists/items/{item_id}", tags=["watchlist"], status_code=204)
+async def delete_watchlist_item(item_id: str) -> None:
+    async with get_session() as session:
+        deleted = await remove_item(session, item_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Watchlist item {item_id} not found")
 
 
 # ── Broker / Trading ─────────────────────────────────────────────────

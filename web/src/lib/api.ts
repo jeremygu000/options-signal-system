@@ -40,12 +40,18 @@ import type {
   FundamentalAnalysisResponse,
   PutCallRatioResponse,
   UnusualVolumeResponse,
+  WatchlistCreate,
+  WatchlistUpdate,
+  WatchlistResponse,
+  WatchlistItemCreate,
+  WatchlistItemResponse,
+  WatchlistItemUpdate,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8400";
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? "";
 
-function authHeaders(): HeadersInit {
+export function authHeaders(): HeadersInit {
   if (!API_KEY) return {};
   return { Authorization: `Bearer ${API_KEY}` };
 }
@@ -539,4 +545,105 @@ export function fetchUnusualVolume(
   return fetcher<UnusualVolumeResponse>(
     `/api/v1/options/unusual-volume/${encodeURIComponent(symbol)}`,
   );
+}
+
+export function fetchWatchlists(): Promise<WatchlistResponse[]> {
+  return fetcher<WatchlistResponse[]>("/api/v1/watchlists");
+}
+
+export function fetchWatchlist(id: string): Promise<WatchlistResponse> {
+  return fetcher<WatchlistResponse>(
+    `/api/v1/watchlists/${encodeURIComponent(id)}`,
+  );
+}
+
+export function createWatchlist(
+  req: WatchlistCreate,
+): Promise<WatchlistResponse> {
+  return fetcher<WatchlistResponse>("/api/v1/watchlists", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
+export function updateWatchlist(
+  id: string,
+  req: WatchlistUpdate,
+): Promise<WatchlistResponse> {
+  return fetcher<WatchlistResponse>(
+    `/api/v1/watchlists/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    },
+  );
+}
+
+export function activateWatchlist(id: string): Promise<WatchlistResponse> {
+  return fetcher<WatchlistResponse>(
+    `/api/v1/watchlists/${encodeURIComponent(id)}/activate`,
+    { method: "POST" },
+  );
+}
+
+export async function deleteWatchlist(id: string): Promise<void> {
+  const res = await fetch(
+    `${API_URL}/api/v1/watchlists/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+      cache: "no-store",
+      headers: { ...authHeaders() },
+    },
+  );
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: delete watchlist ${id}`);
+  }
+}
+
+export function fetchActiveWatchlistSymbols(): Promise<string[]> {
+  return fetcher<string[]>("/api/v1/watchlists/active/symbols");
+}
+
+export function addWatchlistItem(
+  watchlistId: string,
+  req: WatchlistItemCreate,
+): Promise<WatchlistItemResponse> {
+  return fetcher<WatchlistItemResponse>(
+    `/api/v1/watchlists/${encodeURIComponent(watchlistId)}/items`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    },
+  );
+}
+
+export function updateWatchlistItem(
+  itemId: string,
+  req: WatchlistItemUpdate,
+): Promise<WatchlistItemResponse> {
+  return fetcher<WatchlistItemResponse>(
+    `/api/v1/watchlists/items/${encodeURIComponent(itemId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    },
+  );
+}
+
+export async function deleteWatchlistItem(itemId: string): Promise<void> {
+  const res = await fetch(
+    `${API_URL}/api/v1/watchlists/items/${encodeURIComponent(itemId)}`,
+    {
+      method: "DELETE",
+      cache: "no-store",
+      headers: { ...authHeaders() },
+    },
+  );
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: delete watchlist item ${itemId}`);
+  }
 }

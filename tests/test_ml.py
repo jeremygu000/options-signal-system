@@ -407,7 +407,7 @@ class TestPipeline:
         scorer = SignalScorer()
 
         with patch("app.ml.pipeline._save_status"):
-            status = run_training_pipeline(regime_clf, scorer, lookback_days=365)
+            status = run_training_pipeline(regime_clf, scorer, lookback_days=365, symbols=["AAPL"])
 
         assert status.last_trained is not None
         assert status.error is None
@@ -618,19 +618,23 @@ class TestMLTrainEndpoint:
 
 
 class TestEnhancedSignalsEndpoint:
+    @patch("app.server._get_watchlist_symbols", return_value=["AAPL"])
     @patch("app.server.get_daily")
     @patch("app.market_regime.get_daily")
     def test_enhanced_signals_no_ml(
-        self, mock_regime_daily: MagicMock, mock_server_daily: MagicMock, client: TestClient
+        self,
+        mock_regime_daily: MagicMock,
+        mock_server_daily: MagicMock,
+        _mock_symbols: MagicMock,
+        client: TestClient,
     ) -> None:
         daily_data = _make_daily(100)
         mock_regime_daily.side_effect = lambda symbol, days=60: daily_data
         mock_server_daily.return_value = daily_data
 
-        from app.server import get_regime_classifier, get_regime_engine, get_signal_scorer, get_strategy_engine
+        from app.server import get_regime_classifier, get_regime_engine, get_signal_scorer
 
         get_regime_engine.cache_clear()
-        get_strategy_engine.cache_clear()
         app.dependency_overrides[get_regime_classifier] = lambda: _FakeRegimeClassifier(trained=False)
         app.dependency_overrides[get_signal_scorer] = lambda: _FakeSignalScorer(trained=False)
 
@@ -648,19 +652,23 @@ class TestEnhancedSignalsEndpoint:
             app.dependency_overrides.pop(get_regime_classifier, None)
             app.dependency_overrides.pop(get_signal_scorer, None)
 
+    @patch("app.server._get_watchlist_symbols", return_value=["AAPL"])
     @patch("app.server.get_daily")
     @patch("app.market_regime.get_daily")
     def test_enhanced_signals_with_ml(
-        self, mock_regime_daily: MagicMock, mock_server_daily: MagicMock, client: TestClient
+        self,
+        mock_regime_daily: MagicMock,
+        mock_server_daily: MagicMock,
+        _mock_symbols: MagicMock,
+        client: TestClient,
     ) -> None:
         daily_data = _make_daily(100)
         mock_regime_daily.side_effect = lambda symbol, days=60: daily_data
         mock_server_daily.return_value = daily_data
 
-        from app.server import get_regime_classifier, get_regime_engine, get_signal_scorer, get_strategy_engine
+        from app.server import get_regime_classifier, get_regime_engine, get_signal_scorer
 
         get_regime_engine.cache_clear()
-        get_strategy_engine.cache_clear()
         app.dependency_overrides[get_regime_classifier] = lambda: _FakeRegimeClassifier(trained=True)
         app.dependency_overrides[get_signal_scorer] = lambda: _FakeSignalScorer(trained=True)
 
@@ -700,10 +708,9 @@ class TestAnalyzeEndpoint:
 
         mock_stream.return_value = fake_stream()
 
-        from app.server import get_regime_classifier, get_regime_engine, get_signal_scorer, get_strategy_engine
+        from app.server import get_regime_classifier, get_regime_engine, get_signal_scorer
 
         get_regime_engine.cache_clear()
-        get_strategy_engine.cache_clear()
         app.dependency_overrides[get_regime_classifier] = lambda: _FakeRegimeClassifier(trained=False)
         app.dependency_overrides[get_signal_scorer] = lambda: _FakeSignalScorer(trained=False)
 

@@ -58,6 +58,7 @@ def run_training_pipeline(
     regime_classifier: RegimeClassifier,
     signal_scorer: SignalScorer,
     lookback_days: int = 365,
+    symbols: list[str] | None = None,
 ) -> TrainingStatus:
     """Execute full training pipeline: regime HMM + signal scorer.
 
@@ -85,7 +86,7 @@ def run_training_pipeline(
         # ── Phase 2: Signal scorer ───────────────────────────────────
         # Train on the symbol with the most data
         trained_on: str | None = None
-        for sym in settings.symbols:
+        for sym in symbols or []:
             daily = get_daily(sym, lookback_days)
             if len(daily) >= 200:
                 scorer_metrics = signal_scorer.train(daily, horizon=5)

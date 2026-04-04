@@ -774,3 +774,50 @@ export interface PaginatedSymbolResult {
   offset: number;
   limit: number;
 }
+
+// ── Watchlist ─────────────────────────────────────────────────────────
+
+export interface WatchlistItemCreate {
+  symbol: string;
+  sector?: string;
+  bias?: string;
+  sort_order?: number;
+}
+
+export interface WatchlistItemResponse {
+  id: string;
+  watchlist_id: string;
+  symbol: string;
+  sector: string;
+  bias: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface WatchlistCreate {
+  name: string;
+  description?: string;
+  is_active?: boolean;
+  items?: WatchlistItemCreate[];
+}
+
+export interface WatchlistUpdate {
+  name?: string;
+  description?: string;
+}
+
+export interface WatchlistItemUpdate {
+  sector?: string;
+  bias?: string;
+  sort_order?: number;
+}
+
+export interface WatchlistResponse {
+  id: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+  items: WatchlistItemResponse[];
+  created_at: string;
+  updated_at: string;
+}
