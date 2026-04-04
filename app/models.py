@@ -366,3 +366,100 @@ class PaginatedSymbolResult(BaseModel):
     total: int
     offset: int
     limit: int
+
+
+# ── Signal backtest models ───────────────────────────────────────────
+
+
+class SignalBacktestRequest(BaseModel):
+    symbol: str = Field(min_length=1, max_length=10)
+    start_date: date | None = Field(default=None, description="Backtest start (default: 1 year ago)")
+    end_date: date | None = Field(default=None, description="Backtest end (default: today)")
+    horizons: list[int] = Field(default=[1, 3, 5, 10, 20], description="Forward-return horizons in days")
+
+
+class SignalOutcome(BaseModel):
+    date: date
+    signal_level: str
+    bias: str
+    score: int
+    price: float
+    returns: dict[str, float] = Field(
+        default_factory=dict, description="Horizon → forward return, e.g. {'1d': 0.012, '5d': -0.003}"
+    )
+    hit: dict[str, bool] = Field(default_factory=dict, description="Horizon → whether direction was correct")
+
+
+class HorizonBreakdown(BaseModel):
+    horizon: str
+    total_signals: int = 0
+    hits: int = 0
+    hit_rate: float = 0.0
+    avg_return: float = 0.0
+    strong_signals: int = 0
+    strong_hits: int = 0
+    strong_hit_rate: float = 0.0
+    watch_signals: int = 0
+    watch_hits: int = 0
+    watch_hit_rate: float = 0.0
+
+
+class RegimeBreakdown(BaseModel):
+    regime: str
+    total_signals: int = 0
+    hit_rate: float = 0.0
+    avg_return: float = 0.0
+
+
+class SignalBacktestMetrics(BaseModel):
+    total_days: int = 0
+    signal_days: int = 0
+    strong_days: int = 0
+    watch_days: int = 0
+    none_days: int = 0
+    overall_hit_rate: float = 0.0
+    avg_return: float = 0.0
+    profit_factor: float = 0.0
+    max_drawdown: float = 0.0
+    sharpe: float = 0.0
+    by_horizon: list[HorizonBreakdown] = Field(default_factory=list)
+    by_regime: list[RegimeBreakdown] = Field(default_factory=list)
+
+
+class SignalBacktestResponse(BaseModel):
+    symbol: str
+    start_date: date
+    end_date: date
+    metrics: SignalBacktestMetrics = Field(default_factory=SignalBacktestMetrics)
+    outcomes: list[SignalOutcome] = Field(default_factory=list)
+    equity_curve: list[float] = Field(default_factory=list)
+    error: str | None = None
+    timestamp: datetime = Field(default_factory=now_ny)
+
+
+class WalkForwardWindow(BaseModel):
+    train_start: date
+    train_end: date
+    test_start: date
+    test_end: date
+    in_sample_hit_rate: float = 0.0
+    out_of_sample_hit_rate: float = 0.0
+    out_of_sample_return: float = 0.0
+
+
+class WalkForwardRequest(BaseModel):
+    symbol: str = Field(min_length=1, max_length=10)
+    train_days: int = Field(default=252, ge=60, le=756)
+    test_days: int = Field(default=63, ge=21, le=252)
+    step_days: int = Field(default=21, ge=5, le=63)
+    horizon: int = Field(default=5, ge=1, le=20)
+
+
+class WalkForwardResponse(BaseModel):
+    symbol: str
+    windows: list[WalkForwardWindow] = Field(default_factory=list)
+    avg_oos_hit_rate: float = 0.0
+    avg_oos_return: float = 0.0
+    stability_ratio: float = Field(default=0.0, description="OOS hit rate / IS hit rate — closer to 1.0 is better")
+    error: str | None = None
+    timestamp: datetime = Field(default_factory=now_ny)

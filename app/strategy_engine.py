@@ -62,8 +62,25 @@ class StrategyEngine:
                 return self._long_setup(symbol, regime)
             return self._short_setup(symbol, regime)
 
+    def evaluate_with_data(self, symbol: str, regime: MarketRegimeResult, daily: pd.DataFrame) -> Signal:
+        """Evaluate using pre-sliced data (for backtesting — no intraday)."""
+        upper = symbol.upper()
+        if upper in settings.short_symbols:
+            return self._short_setup(symbol, regime, daily=daily, intraday=pd.DataFrame())
+        elif upper in settings.long_symbols:
+            return self._long_setup(symbol, regime, daily=daily, intraday=pd.DataFrame())
+        else:
+            bias = self._auto_detect_bias_from_data(daily)
+            if bias == Bias.LONG:
+                return self._long_setup(symbol, regime, daily=daily, intraday=pd.DataFrame())
+            return self._short_setup(symbol, regime, daily=daily, intraday=pd.DataFrame())
+
     def _auto_detect_bias(self, symbol: str) -> Bias:
         daily = get_daily(symbol, days=60)
+        return self._auto_detect_bias_from_data(daily)
+
+    @staticmethod
+    def _auto_detect_bias_from_data(daily: pd.DataFrame) -> Bias:
         if daily.empty or len(daily) < 20:
             return Bias.SHORT
         close = daily["Close"]
@@ -73,10 +90,18 @@ class StrategyEngine:
             return Bias.LONG
         return Bias.SHORT
 
-    def _short_setup(self, symbol: str, regime: MarketRegimeResult) -> Signal:
+    def _short_setup(
+        self,
+        symbol: str,
+        regime: MarketRegimeResult,
+        daily: pd.DataFrame | None = None,
+        intraday: pd.DataFrame | None = None,
+    ) -> Signal:
         """逢高做空 — USO / XOM / XLE."""
-        daily = get_daily(symbol, days=60)
-        intraday = get_intraday(symbol)
+        if daily is None:
+            daily = get_daily(symbol, days=60)
+        if intraday is None:
+            intraday = get_intraday(symbol)
 
         if daily.empty:
             return self._empty_signal(symbol, Bias.SHORT)
@@ -178,10 +203,18 @@ class StrategyEngine:
             score=score,
         )
 
-    def _long_setup(self, symbol: str, regime: MarketRegimeResult) -> Signal:
+    def _long_setup(
+        self,
+        symbol: str,
+        regime: MarketRegimeResult,
+        daily: pd.DataFrame | None = None,
+        intraday: pd.DataFrame | None = None,
+    ) -> Signal:
         """逢低做多 — CRM."""
-        daily = get_daily(symbol, days=60)
-        intraday = get_intraday(symbol)
+        if daily is None:
+            daily = get_daily(symbol, days=60)
+        if intraday is None:
+            intraday = get_intraday(symbol)
 
         if daily.empty:
             return self._empty_signal(symbol, Bias.LONG)

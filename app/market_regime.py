@@ -31,6 +31,13 @@ class MarketRegimeEngine:
     def evaluate(self) -> MarketRegimeResult:
         qqq_daily = get_daily(self._qqq_symbol, days=60)
         vix_daily = get_daily(self._vix_symbol, days=60)
+        return self._evaluate_impl(qqq_daily, vix_daily)
+
+    def evaluate_with_data(self, qqq_daily: pd.DataFrame, vix_daily: pd.DataFrame) -> MarketRegimeResult:
+        """Evaluate regime using pre-sliced data (for backtesting)."""
+        return self._evaluate_impl(qqq_daily, vix_daily)
+
+    def _evaluate_impl(self, qqq_daily: pd.DataFrame, vix_daily: pd.DataFrame) -> MarketRegimeResult:
 
         if qqq_daily.empty or vix_daily.empty:
             logger.error("Missing data for regime evaluation (QQQ=%d, VIX=%d rows)", len(qqq_daily), len(vix_daily))

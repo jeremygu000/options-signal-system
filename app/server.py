@@ -68,6 +68,10 @@ from app.models import (
     TrainingStatusResponse,
     SymbolMetaResponse,
     PaginatedSymbolResult,
+    SignalBacktestRequest,
+    SignalBacktestResponse,
+    WalkForwardRequest,
+    WalkForwardResponse,
 )
 from app.options_data import clear_chain_cache, get_expirations, get_options_chain, get_options_chain_multi
 from app.options_source import get_options_source
@@ -87,6 +91,7 @@ from app.positions import (
     mark_expired_positions,
     update_position,
 )
+from app.signal_backtest import run_signal_backtest, run_walk_forward
 from app.strategy_engine import StrategyEngine
 from app.symbol_discovery import build_metadata_index, clear_discovery_cache, search_symbols
 from app.ml.llm_analyzer import stream_signal_analysis
@@ -273,6 +278,7 @@ tags_metadata = [
     {"name": "market", "description": "Market regime & signal endpoints"},
     {"name": "data", "description": "OHLCV & indicator data"},
     {"name": "options", "description": "Options chain & backtesting"},
+    {"name": "signal-backtest", "description": "Signal replay backtesting & walk-forward analysis"},
     {"name": "positions", "description": "Position management & portfolio"},
     {"name": "ml", "description": "ML-enhanced signals, regime & training"},
     {"name": "discovery", "description": "Symbol discovery & metadata"},
@@ -905,6 +911,44 @@ async def interpret_backtest(req: BacktestInterpretRequest) -> StreamingResponse
             yield f'data: {{"error": "{str(exc)[:200]}"}}\n\n'
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ── Signal backtest endpoints ────────────────────────────────────────
+
+
+@app.post(
+    "/api/v1/backtest/signals",
+    response_model=SignalBacktestResponse,
+    tags=["signal-backtest"],
+)
+async def signal_backtest(req: SignalBacktestRequest) -> SignalBacktestResponse:
+    symbol = validate_symbol(req.symbol)
+    result = await asyncio.to_thread(
+        run_signal_backtest,
+        symbol=symbol,
+        start_date=req.start_date,
+        end_date=req.end_date,
+        horizons=req.horizons,
+    )
+    return result
+
+
+@app.post(
+    "/api/v1/backtest/walk-forward",
+    response_model=WalkForwardResponse,
+    tags=["signal-backtest"],
+)
+async def walk_forward(req: WalkForwardRequest) -> WalkForwardResponse:
+    symbol = validate_symbol(req.symbol)
+    result = await asyncio.to_thread(
+        run_walk_forward,
+        symbol=symbol,
+        train_days=req.train_days,
+        test_days=req.test_days,
+        step_days=req.step_days,
+        horizon=req.horizon,
+    )
+    return result
 
 
 # ── Position management endpoints ────────────────────────────────────

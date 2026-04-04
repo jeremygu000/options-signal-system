@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     ollama_base_url: str = Field(default="http://localhost:11434", description="Ollama API base URL")
     ollama_model: str = Field(default="qwen3:32b", description="Ollama model name for AI interpretation")
 
+    # ── Alpaca (paper trading) ───────────────────────────────────────
+    alpaca_api_key: str = Field(default="", description="Alpaca API key")
+    alpaca_api_secret: str = Field(default="", description="Alpaca API secret")
+    alpaca_base_url: str = Field(
+        default="https://paper-api.alpaca.markets/v2",
+        description="Alpaca API base URL",
+    )
+
     @property
     def telegram_enabled(self) -> bool:
         return bool(self.telegram_bot_token.get_secret_value() and self.telegram_chat_id.get_secret_value())

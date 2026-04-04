@@ -1,6 +1,6 @@
 # Competitive Analysis: Options Signal System vs Industry
 
-> Generated: 2026-04-04 | Based on analysis of 12+ open-source projects
+> Generated: 2026-04-04 | Updated: 2026-04-05 | Based on analysis of 12+ open-source projects
 
 ## 1. Competitive Landscape
 
@@ -41,12 +41,13 @@
 | Notifications (TG/WeChat) | ✅ | Partial | ❌ | ❌ | ❌ | ✅ |
 | Strategy Backtesting | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Live Trading | ❌ | ✅ | ✅ IB | ✅ IB | ❌ | ✅ Alpaca |
-| Greeks Calculation | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ |
-| Implied Volatility | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Greeks Calculation | ✅ BS model | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Implied Volatility | ✅ IV percentile | ✅ | ✅ | ❌ | ✅ | ❌ |
 | Options Chain Data | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ |
 | Multi-Leg Strategies | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | Fundamental Data | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| ML/AI Enhancement | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| ML/AI Enhancement | ✅ 5 modules | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Symbol Discovery | ✅ DuckDB | ✅ | ✅ | ❌ | ❌ | ❌ |
 | WebSocket Real-time | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 
 ---
