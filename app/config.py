@@ -55,6 +55,7 @@ class Settings(BaseSettings):
 
     # ── Rate limiting ────────────────────────────────────────────────
     rate_limit_per_minute: int = Field(default=60, description="Max requests per minute per IP")
+    rate_limit_per_key_per_minute: int = Field(default=120, description="Max requests per minute per API key")
 
     # ── Signal filter ─────────────────────────────────────────────────
     strong_only: bool = Field(

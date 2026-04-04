@@ -125,7 +125,7 @@
 |-----------|---------|---------------|
 | Type Safety | 5/5 | 5/5 |
 | Code Structure | 5/5 | 5/5 |
-| API Security | 4/5 | 5/5 |
+| API Security | 5/5 | 5/5 |
 | Test Coverage | 5/5 | 5/5 |
 | Observability | 4/5 | 5/5 |
 | Performance | 5/5 | 5/5 |

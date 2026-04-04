@@ -11,7 +11,6 @@ import json as _json
 import logging
 import time
 import uuid
-from collections import defaultdict
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Annotated, Any, AsyncIterator
@@ -25,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from app.backtester import BacktestConfig, StrategyType, run_backtest, run_multi_strategy_backtest
 from app.config import settings
-from app.security import ApiKey
+from app.security import ApiKey, check_rate_limit_ip
 from app.data_provider import (
     clear_cache as clear_data_cache,
     get_available_symbols,
@@ -264,22 +263,6 @@ MLRegime = Annotated[RegimeClassifier, Depends(get_regime_classifier)]
 MLScorer = Annotated[SignalScorer, Depends(get_signal_scorer)]
 
 
-# ── Rate limiter ─────────────────────────────────────────────────────
-
-_rate_store: dict[str, list[float]] = defaultdict(list)
-
-
-def _check_rate_limit(client_ip: str) -> None:
-    now = time.monotonic()
-    window = 60.0
-    max_requests = settings.rate_limit_per_minute
-    timestamps = _rate_store[client_ip]
-    _rate_store[client_ip] = [t for t in timestamps if now - t < window]
-    if len(_rate_store[client_ip]) >= max_requests:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    _rate_store[client_ip].append(now)
-
-
 # ── App ──────────────────────────────────────────────────────────────
 
 
@@ -390,9 +373,8 @@ async def request_middleware(request: Request, call_next: object) -> Response:
     request_id = str(uuid.uuid4())[:8]
     request.state.request_id = request_id
 
-    client_ip = request.client.host if request.client else "unknown"
     try:
-        _check_rate_limit(client_ip)
+        check_rate_limit_ip(request)
     except HTTPException as exc:
         return Response(content=exc.detail, status_code=exc.status_code, headers={"X-Request-ID": request_id})
 
