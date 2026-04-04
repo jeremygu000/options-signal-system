@@ -39,6 +39,7 @@ import type {
   PortfolioHistoryResponse,
   FundamentalAnalysisResponse,
   PutCallRatioResponse,
+  UnusualVolumeResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8400";
@@ -520,5 +521,13 @@ export function fetchPutCallRatio(
 ): Promise<PutCallRatioResponse> {
   return fetcher<PutCallRatioResponse>(
     `/api/v1/options/put-call-ratio/${encodeURIComponent(symbol)}`,
+  );
+}
+
+export function fetchUnusualVolume(
+  symbol: string,
+): Promise<UnusualVolumeResponse> {
+  return fetcher<UnusualVolumeResponse>(
+    `/api/v1/options/unusual-volume/${encodeURIComponent(symbol)}`,
   );
 }

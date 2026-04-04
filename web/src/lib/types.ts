@@ -701,6 +701,49 @@ export interface PutCallRatioResponse {
   error: string | null;
 }
 
+// ── Unusual options volume ──────────────────────────────────────────
+
+export interface UnusualStrike {
+  expiration: string;
+  dte_days: number;
+  strike: number;
+  option_type: string;
+  volume: number;
+  open_interest: number;
+  voi_ratio: number;
+  bid: number;
+  ask: number;
+  mid_price: number;
+  implied_volatility: number;
+  premium: number;
+  moneyness: number;
+  size_category: string;
+}
+
+export interface ClusterSummary {
+  is_clustered: boolean;
+  pattern: string;
+  unusual_call_count: number;
+  unusual_put_count: number;
+  total_premium: number;
+  total_contracts: number;
+}
+
+export interface UnusualVolumeResponse {
+  symbol: string;
+  spot_price: number;
+  total_contracts_scanned: number;
+  unusual_strikes_found: number;
+  total_unusual_premium: number;
+  signal: string;
+  signal_description: string;
+  score: number;
+  strikes: UnusualStrike[];
+  cluster: ClusterSummary | null;
+  expirations_scanned: number;
+  error: string | null;
+}
+
 // ── WebSocket ──────────────────────────────────────────────────────
 
 export type WSChannel = "signals" | "regime" | "broker" | "health";

@@ -35,6 +35,7 @@ from app.data_provider import (
 from app.database import close_db, get_session, init_db
 from app.fundamental import FundamentalAnalysisResult, compute_fundamental_analysis
 from app.put_call_ratio import PutCallRatioResult, compute_put_call_ratio
+from app.unusual_volume import UnusualVolumeResult, compute_unusual_volume
 from app.greeks import GreeksResult, calculate_greeks
 from app.iv_analysis import IVAnalysisResult, compute_iv_analysis
 from app.multi_leg import OptionLeg, analyze_multi_leg
@@ -92,6 +93,9 @@ from app.models import (
     PortfolioHistoryRequest,
     PortfolioHistoryResponse,
     PutCallRatioResponse,
+    UnusualStrikeModel,
+    ClusterSummaryModel,
+    UnusualVolumeResponse,
 )
 from app.options_data import clear_chain_cache, get_expirations, get_options_chain, get_options_chain_multi
 from app.options_source import get_options_source
@@ -919,6 +923,59 @@ async def put_call_ratio(symbol: str) -> PutCallRatioResponse:
             for t in result.term_structure
         ],
         expirations_analysed=result.expirations_analysed,
+        error=result.error,
+    )
+
+
+@app.get("/api/v1/options/unusual-volume/{symbol}", response_model=UnusualVolumeResponse, tags=["options"])
+@app.get("/api/options/unusual-volume/{symbol}", response_model=UnusualVolumeResponse, include_in_schema=False)
+async def unusual_volume(symbol: str) -> UnusualVolumeResponse:
+    upper_symbol = symbol.upper()
+
+    loop = asyncio.get_event_loop()
+    result: UnusualVolumeResult = await loop.run_in_executor(None, compute_unusual_volume, upper_symbol)
+
+    return UnusualVolumeResponse(
+        symbol=result.symbol,
+        spot_price=result.spot_price,
+        total_contracts_scanned=result.total_contracts_scanned,
+        unusual_strikes_found=result.unusual_strikes_found,
+        total_unusual_premium=result.total_unusual_premium,
+        signal=result.signal,
+        signal_description=result.signal_description,
+        score=result.score,
+        strikes=[
+            UnusualStrikeModel(
+                expiration=s.expiration,
+                dte_days=s.dte_days,
+                strike=s.strike,
+                option_type=s.option_type,
+                volume=s.volume,
+                open_interest=s.open_interest,
+                voi_ratio=s.voi_ratio,
+                bid=s.bid,
+                ask=s.ask,
+                mid_price=s.mid_price,
+                implied_volatility=s.implied_volatility,
+                premium=s.premium,
+                moneyness=s.moneyness,
+                size_category=s.size_category,
+            )
+            for s in result.strikes
+        ],
+        cluster=(
+            ClusterSummaryModel(
+                is_clustered=result.cluster.is_clustered,
+                pattern=result.cluster.pattern,
+                unusual_call_count=result.cluster.unusual_call_count,
+                unusual_put_count=result.cluster.unusual_put_count,
+                total_premium=result.cluster.total_premium,
+                total_contracts=result.cluster.total_contracts,
+            )
+            if result.cluster
+            else None
+        ),
+        expirations_scanned=result.expirations_scanned,
         error=result.error,
     )
 

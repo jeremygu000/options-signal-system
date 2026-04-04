@@ -706,3 +706,47 @@ class PutCallRatioResponse(BaseModel):
     term_structure: list[PCRTermPointModel] = Field(default_factory=list)
     expirations_analysed: int = 0
     error: str | None = None
+
+
+# ── Unusual options volume models ────────────────────────────────────
+
+
+class UnusualStrikeModel(BaseModel):
+    expiration: str
+    dte_days: int
+    strike: float
+    option_type: str
+    volume: int
+    open_interest: int
+    voi_ratio: float
+    bid: float
+    ask: float
+    mid_price: float
+    implied_volatility: float
+    premium: float
+    moneyness: float
+    size_category: str
+
+
+class ClusterSummaryModel(BaseModel):
+    is_clustered: bool = False
+    pattern: str = "none"
+    unusual_call_count: int = 0
+    unusual_put_count: int = 0
+    total_premium: float = 0.0
+    total_contracts: int = 0
+
+
+class UnusualVolumeResponse(BaseModel):
+    symbol: str
+    spot_price: float = 0.0
+    total_contracts_scanned: int = 0
+    unusual_strikes_found: int = 0
+    total_unusual_premium: float = 0.0
+    signal: str = "neutral"
+    signal_description: str = ""
+    score: int = 0
+    strikes: list[UnusualStrikeModel] = Field(default_factory=list)
+    cluster: ClusterSummaryModel | None = None
+    expirations_scanned: int = 0
+    error: str | None = None

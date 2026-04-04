@@ -49,6 +49,7 @@
 | ML/AI Enhancement | ✅ 5 modules | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Symbol Discovery | ✅ DuckDB | ✅ | ✅ | ❌ | ❌ | ❌ |
 | WebSocket Real-time | ✅ 4 channels | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Unusual Volume Detection | ✅ Smart money | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 ---
 
@@ -81,6 +82,7 @@
 | 9 | ~~No Fundamental Data~~ | ✅ Valuation, analyst ratings, price targets, earnings surprises, short interest, income highlights | `app/fundamental.py` |
 | 10 | ~~No WebSocket Real-time Push~~ | ✅ 4-channel WebSocket hub (signals, regime, broker, health) with auto-reconnect frontend hook | `app/ws.py` |
 | 11 | ~~No Put/Call Ratio signal~~ | ✅ Volume/OI ratios, ATM-weighted PCR, contrarian signal, strike distribution, term structure | `app/put_call_ratio.py` |
+| 12 | ~~No unusual options volume detection~~ | ✅ V/OI ratio scanning, size classification, clustering detection, 5-factor smart money scoring | `app/unusual_volume.py` |
 
 ### 🔴 High Priority Gaps
 
@@ -92,9 +94,7 @@
 
 ### 🟢 Low Priority Gaps
 
-| # | Gap | Impact |
-|---|-----|--------|
-| 12 | No unusual options volume detection | Missing "smart money" signals |
+*All gaps have been resolved. See Resolved Gaps above.*
 
 ---
 
@@ -110,7 +110,7 @@
 ### Phase 2: Differentiation ✅ COMPLETE
 - ✅ **Options chain data** — Real-time options chain with strike/expiry selection (`app/options_data.py`)
 - ✅ **Multi-leg strategy recommendations** — Iron Condor, Spreads, Straddle, Strangle, Butterfly (`app/multi_leg.py`)
-- ✅ **Put/Call ratio + unusual volume** — Put/Call ratio with ATM-weighted PCR, contrarian signals, term structure (`app/put_call_ratio.py`)
+- ✅ **Put/Call ratio + unusual volume** — Put/Call ratio with ATM-weighted PCR, contrarian signals, term structure (`app/put_call_ratio.py`) + unusual volume detection with V/OI scanning, clustering, smart money scoring (`app/unusual_volume.py`)
 
 ### Phase 3: Production Trading ✅ COMPLETE
 - ✅ **Broker integration** — Alpaca paper trading with full order/position management (`app/broker.py`)

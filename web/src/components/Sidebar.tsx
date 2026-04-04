@@ -22,6 +22,7 @@ import BarChartIcon from "@mui/icons-material/BarChart";
 import ShowChartIcon from "@mui/icons-material/ShowChart";
 import InsightsIcon from "@mui/icons-material/Insights";
 import DonutSmallIcon from "@mui/icons-material/DonutSmall";
+import BubbleChartIcon from "@mui/icons-material/BubbleChart";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -81,6 +82,12 @@ const NAV_ITEMS = [
     label: "看跌/看涨比",
     sublabel: "Put/Call Ratio",
     Icon: DonutSmallIcon,
+  },
+  {
+    href: "/unusual-volume",
+    label: "异常成交量",
+    sublabel: "Unusual Volume",
+    Icon: BubbleChartIcon,
   },
 ];
 
