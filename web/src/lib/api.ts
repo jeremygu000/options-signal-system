@@ -13,6 +13,8 @@ import type {
   GreeksRequest,
   GreeksResponse,
   IVAnalysisResponse,
+  MultiLegRequest,
+  MultiLegResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8300";
@@ -116,6 +118,14 @@ export function calculateGreeks(req: GreeksRequest): Promise<GreeksResponse> {
 
 export function fetchIVAnalysis(symbol: string): Promise<IVAnalysisResponse> {
   return fetcher<IVAnalysisResponse>(`/api/v1/iv/analysis/${symbol}`);
+}
+
+export function analyzeMultiLeg(req: MultiLegRequest): Promise<MultiLegResponse> {
+  return fetcher<MultiLegResponse>("/api/v1/options/multi-leg/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
 }
 
 export interface InterpretBacktestPayload {

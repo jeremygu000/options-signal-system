@@ -18,6 +18,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import Autocomplete from "@mui/material/Autocomplete";
+import IconButton from "@mui/material/IconButton";
 import SectionHeader from "@/components/SectionHeader";
 import { useThemeMode } from "@/components/ThemeProvider";
 import Table from "@mui/material/Table";
@@ -35,6 +36,7 @@ import {
   interpretBacktest,
   calculateGreeks,
   fetchIVAnalysis,
+  analyzeMultiLeg,
 } from "@/lib/api";
 import type {
   SymbolInfo,
@@ -48,6 +50,8 @@ import type {
   GreeksRequest,
   GreeksResponse,
   IVAnalysisResponse,
+  MultiLegResponse,
+  OptionLegInput,
 } from "@/lib/types";
 
 function daysUntil(dateStr: string): number {
@@ -2588,6 +2592,641 @@ function IVAnalysisSection() {
   );
 }
 
+interface LegFormState {
+  id: string;
+  option_type: "c" | "p";
+  action: "buy" | "sell";
+  strike: number;
+  quantity: number;
+  premium: number;
+  iv: number;
+}
+
+const STRATEGY_TEMPLATES: Record<
+  string,
+  {
+    label: string;
+    legs: { option_type: "c" | "p"; action: "buy" | "sell"; strike_offset: number }[];
+  }
+> = {
+  custom: { label: "Custom", legs: [] },
+  bull_call_spread: {
+    label: "Bull Call Spread",
+    legs: [
+      { option_type: "c", action: "buy", strike_offset: -5 },
+      { option_type: "c", action: "sell", strike_offset: 5 },
+    ],
+  },
+  bear_put_spread: {
+    label: "Bear Put Spread",
+    legs: [
+      { option_type: "p", action: "buy", strike_offset: 5 },
+      { option_type: "p", action: "sell", strike_offset: -5 },
+    ],
+  },
+  long_straddle: {
+    label: "Long Straddle",
+    legs: [
+      { option_type: "c", action: "buy", strike_offset: 0 },
+      { option_type: "p", action: "buy", strike_offset: 0 },
+    ],
+  },
+  long_strangle: {
+    label: "Long Strangle",
+    legs: [
+      { option_type: "c", action: "buy", strike_offset: 5 },
+      { option_type: "p", action: "buy", strike_offset: -5 },
+    ],
+  },
+  iron_condor: {
+    label: "Iron Condor",
+    legs: [
+      { option_type: "p", action: "buy", strike_offset: -10 },
+      { option_type: "p", action: "sell", strike_offset: -5 },
+      { option_type: "c", action: "sell", strike_offset: 5 },
+      { option_type: "c", action: "buy", strike_offset: 10 },
+    ],
+  },
+  iron_butterfly: {
+    label: "Iron Butterfly",
+    legs: [
+      { option_type: "p", action: "buy", strike_offset: -10 },
+      { option_type: "p", action: "sell", strike_offset: 0 },
+      { option_type: "c", action: "sell", strike_offset: 0 },
+      { option_type: "c", action: "buy", strike_offset: 10 },
+    ],
+  },
+};
+
+interface PnLChartProps {
+  pnlCurve: { price: number; pnl: number }[];
+}
+
+function PnLChart({ pnlCurve }: PnLChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { mode } = useThemeMode();
+
+  useEffect(() => {
+    if (!containerRef.current || pnlCurve.length === 0) return;
+
+    let chart: import("lightweight-charts").IChartApi | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    async function init() {
+      const lc = await import("lightweight-charts");
+      const el = containerRef.current;
+      if (!el) return;
+
+      const isDark = mode === "dark";
+      const bg = isDark ? "#111827" : "#ffffff";
+      const textColor = isDark ? "#8899aa" : "#627183";
+      const gridColor = isDark ? "#1e2a3a" : "#f0f2f5";
+
+      chart = lc.createChart(el, {
+        width: el.clientWidth,
+        height: 300,
+        layout: { background: { color: bg }, textColor },
+        grid: {
+          vertLines: { color: gridColor },
+          horzLines: { color: gridColor },
+        },
+        crosshair: { mode: lc.CrosshairMode.Normal },
+        rightPriceScale: { borderColor: gridColor },
+        timeScale: { borderColor: gridColor, timeVisible: false },
+      });
+
+      const sorted = pnlCurve.toSorted((a, b) => a.price - b.price);
+
+      const baselineSeries = chart.addSeries(lc.BaselineSeries, {
+        baseValue: { type: "price", price: 0 },
+        topLineColor: "#00c853",
+        topFillColor1: "rgba(0,200,83,0.28)",
+        topFillColor2: "rgba(0,200,83,0.05)",
+        bottomLineColor: "#ff1744",
+        bottomFillColor1: "rgba(255,23,68,0.05)",
+        bottomFillColor2: "rgba(255,23,68,0.28)",
+        lineWidth: 2,
+        crosshairMarkerVisible: true,
+        crosshairMarkerRadius: 4,
+      });
+
+      const seriesData = sorted.map((p) => ({
+        time: p.price as unknown as import("lightweight-charts").Time,
+        value: p.pnl,
+      }));
+
+      baselineSeries.setData(seriesData);
+
+      chart.timeScale().fitContent();
+
+      resizeObserver = new ResizeObserver(() => {
+        if (chart && el) chart.applyOptions({ width: el.clientWidth });
+      });
+      resizeObserver.observe(el);
+    }
+
+    init();
+
+    return () => {
+      resizeObserver?.disconnect();
+      chart?.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mode captured via closure
+  }, [pnlCurve]);
+
+  return <Box ref={containerRef} sx={{ width: "100%", minHeight: 300 }} />;
+}
+
+let legIdCounter = 0;
+function newLegId(): string {
+  legIdCounter += 1;
+  return `leg-${legIdCounter}`;
+}
+
+function StrategyBuilderSection() {
+  const [spot, setSpot] = useState(100);
+  const [dteDays, setDteDays] = useState(30);
+  const [riskFreeRate, setRiskFreeRate] = useState(0.05);
+  const [selectedTemplate, setSelectedTemplate] = useState("custom");
+  const [legs, setLegs] = useState<LegFormState[]>([]);
+  const [result, setResult] = useState<MultiLegResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const applyTemplate = useCallback(
+    (templateKey: string, currentSpot: number) => {
+      setSelectedTemplate(templateKey);
+      const tpl = STRATEGY_TEMPLATES[templateKey];
+      if (!tpl || tpl.legs.length === 0) {
+        setLegs([]);
+        return;
+      }
+      const newLegs: LegFormState[] = tpl.legs.map((l) => ({
+        id: newLegId(),
+        option_type: l.option_type,
+        action: l.action,
+        strike: currentSpot + l.strike_offset,
+        quantity: 1,
+        premium: 2.0,
+        iv: 0.3,
+      }));
+      setLegs(newLegs);
+    },
+    [],
+  );
+
+  const updateLeg = useCallback(
+    (id: string, field: keyof Omit<LegFormState, "id">, value: string | number) => {
+      setLegs((prev) =>
+        prev.map((leg) => (leg.id === id ? { ...leg, [field]: value } : leg)),
+      );
+    },
+    [],
+  );
+
+  const removeLeg = useCallback((id: string) => {
+    setLegs((prev) => prev.filter((leg) => leg.id !== id));
+  }, []);
+
+  const addLeg = useCallback(() => {
+    setLegs((prev) => [
+      ...prev,
+      {
+        id: newLegId(),
+        option_type: "c",
+        action: "buy",
+        strike: spot,
+        quantity: 1,
+        premium: 2.0,
+        iv: 0.3,
+      },
+    ]);
+  }, [spot]);
+
+  const handleAnalyze = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    const legInputs: OptionLegInput[] = legs.map((l) => ({
+      option_type: l.option_type,
+      action: l.action,
+      strike: l.strike,
+      expiration: "2025-01-17",
+      quantity: l.quantity,
+      premium: l.premium,
+      iv: l.iv,
+    }));
+    try {
+      const res = await analyzeMultiLeg({
+        legs: legInputs,
+        spot,
+        dte_days: dteDays,
+        risk_free_rate: riskFreeRate,
+      });
+      setResult(res);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Analysis failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [legs, spot, dteDays, riskFreeRate]);
+
+  const netColor =
+    result && result.net_debit_credit < 0 ? "#00c853" : "#ff1744";
+
+  return (
+    <Box component="section" id="strategy-builder" sx={{ mb: 6 }}>
+      <SectionHeader
+        number="05"
+        title="策略构建器"
+        subtitle="Strategy Builder — Multi-leg P&L, breakevens & aggregated Greeks"
+      />
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+              <TextField
+                label="标的价格 Spot"
+                type="number"
+                size="small"
+                fullWidth
+                value={spot}
+                onChange={(e) => setSpot(Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0.01, step: 1 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+              <TextField
+                label="距到期天数 DTE"
+                type="number"
+                size="small"
+                fullWidth
+                value={dteDays}
+                onChange={(e) => setDteDays(Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0, max: 3650, step: 1 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+              <TextField
+                label="无风险利率 Risk-Free"
+                type="number"
+                size="small"
+                fullWidth
+                value={riskFreeRate}
+                onChange={(e) => setRiskFreeRate(Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0, max: 1, step: 0.01 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3, md: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>策略模板 Template</InputLabel>
+                <Select
+                  value={selectedTemplate}
+                  label="策略模板 Template"
+                  onChange={(e) => applyTemplate(e.target.value, spot)}
+                >
+                  {Object.entries(STRATEGY_TEMPLATES).map(([key, tpl]) => (
+                    <MenuItem key={key} value={key}>
+                      {tpl.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+
+          <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5, fontSize: "0.85rem" }}>
+            期权腿 · Option Legs
+          </Typography>
+
+          {legs.map((leg) => (
+            <Box
+              key={leg.id}
+              sx={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 1,
+                mb: 1.5,
+                alignItems: "center",
+                p: 1.5,
+                borderRadius: 1,
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <FormControl size="small" sx={{ minWidth: 90 }}>
+                <InputLabel>类型</InputLabel>
+                <Select
+                  value={leg.option_type}
+                  label="类型"
+                  onChange={(e) =>
+                    updateLeg(leg.id, "option_type", e.target.value as "c" | "p")
+                  }
+                >
+                  <MenuItem value="c">Call</MenuItem>
+                  <MenuItem value="p">Put</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: 90 }}>
+                <InputLabel>方向</InputLabel>
+                <Select
+                  value={leg.action}
+                  label="方向"
+                  onChange={(e) =>
+                    updateLeg(leg.id, "action", e.target.value as "buy" | "sell")
+                  }
+                >
+                  <MenuItem value="buy">Buy</MenuItem>
+                  <MenuItem value="sell">Sell</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                label="Strike"
+                type="number"
+                size="small"
+                sx={{ width: 90 }}
+                value={leg.strike}
+                onChange={(e) => updateLeg(leg.id, "strike", Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0.01, step: 1 } }}
+              />
+              <TextField
+                label="Premium"
+                type="number"
+                size="small"
+                sx={{ width: 90 }}
+                value={leg.premium}
+                onChange={(e) => updateLeg(leg.id, "premium", Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+              />
+              <TextField
+                label="IV"
+                type="number"
+                size="small"
+                sx={{ width: 80 }}
+                value={leg.iv}
+                onChange={(e) => updateLeg(leg.id, "iv", Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0.01, max: 5, step: 0.01 } }}
+              />
+              <TextField
+                label="Qty"
+                type="number"
+                size="small"
+                sx={{ width: 70 }}
+                value={leg.quantity}
+                onChange={(e) => updateLeg(leg.id, "quantity", Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 1, step: 1 } }}
+              />
+              <IconButton
+                size="small"
+                onClick={() => removeLeg(leg.id)}
+                sx={{ color: "text.secondary", ml: "auto" }}
+              >
+                ✕
+              </IconButton>
+            </Box>
+          ))}
+
+          <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={addLeg}
+              disabled={legs.length >= 4}
+            >
+              Add Leg
+            </Button>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={handleAnalyze}
+              disabled={legs.length === 0 || loading}
+              startIcon={
+                loading ? <CircularProgress size={16} color="inherit" /> : null
+              }
+              sx={{
+                bgcolor: "#3b89ff",
+                px: 4,
+                py: 1.2,
+                fontWeight: 700,
+                fontSize: "0.9rem",
+                "&:hover": { bgcolor: "#2a6ed4" },
+              }}
+            >
+              {loading ? "分析中..." : "Analyze Strategy"}
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+
+      {result && !result.error && (
+        <>
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card sx={{ height: "100%" }}>
+                <CardContent sx={{ pb: "16px !important" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                  >
+                    Net Debit/Credit
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}>
+                    净权利金
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      fontSize: "1.25rem",
+                      color: netColor,
+                    }}
+                  >
+                    {fmtMoney(result.net_debit_credit)}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {result.net_debit_credit < 0 ? "Credit 收权利金" : "Debit 付权利金"}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card sx={{ height: "100%" }}>
+                <CardContent sx={{ pb: "16px !important" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                  >
+                    Max Profit
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}>
+                    最大盈利
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      fontSize: "1.25rem",
+                      color: "#00c853",
+                    }}
+                  >
+                    {result.max_profit >= 999_999_999
+                      ? "Unlimited"
+                      : fmtMoney(result.max_profit)}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card sx={{ height: "100%" }}>
+                <CardContent sx={{ pb: "16px !important" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                  >
+                    Max Loss
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}>
+                    最大亏损
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      fontSize: "1.25rem",
+                      color: "#ff1744",
+                    }}
+                  >
+                    {result.max_loss <= -999_999_999
+                      ? "Unlimited"
+                      : fmtMoney(result.max_loss)}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card sx={{ height: "100%" }}>
+                <CardContent sx={{ pb: "16px !important" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                  >
+                    Breakevens
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}>
+                    盈亏平衡点
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      fontSize: "1rem",
+                      color: "#3b89ff",
+                    }}
+                  >
+                    {result.breakeven_points.length === 0
+                      ? "—"
+                      : result.breakeven_points
+                          .map((p) => fmt(p, 2))
+                          .join(", ")}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 700, mb: 2, fontSize: "0.85rem" }}
+              >
+                Aggregated Greeks · 综合希腊字母
+              </Typography>
+              <Grid container spacing={2}>
+                {(
+                  [
+                    ["Delta", result.greeks.delta],
+                    ["Gamma", result.greeks.gamma],
+                    ["Theta", result.greeks.theta],
+                    ["Vega", result.greeks.vega],
+                    ["Rho", result.greeks.rho],
+                  ] as [string, number][]
+                ).map(([label, value]) => (
+                  <Grid key={label} size={{ xs: 6, sm: 4, md: 2 }}>
+                    <Card sx={{ height: "100%" }}>
+                      <CardContent sx={{ pb: "16px !important" }}>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                        >
+                          {label}
+                        </Typography>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontFamily: "var(--font-geist-mono)",
+                            fontWeight: 700,
+                            fontSize: "1.1rem",
+                            color:
+                              label === "Theta"
+                                ? "#ff7134"
+                                : label === "Delta"
+                                  ? "#3b89ff"
+                                  : "text.primary",
+                          }}
+                        >
+                          {fmt(value, 4)}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 700, mb: 2, fontSize: "0.85rem" }}
+              >
+                P&L Curve · 盈亏曲线
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", display: "block", mb: 1.5 }}
+              >
+                X: Underlying Price · Y: P&L ($)
+              </Typography>
+              {result.pnl_curve.length === 0 ? (
+                <Alert severity="info">No P&L data available</Alert>
+              ) : (
+                <PnLChart pnlCurve={result.pnl_curve} />
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {result?.error && (
+        <Alert severity="error">{result.error}</Alert>
+      )}
+    </Box>
+  );
+}
+
 export default function OptionsPage() {
   return (
     <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, py: 4 }}>
@@ -2605,6 +3244,8 @@ export default function OptionsPage() {
       <OptionsChainSection />
       <BacktestSimulator />
       <GreeksCalculator />
+      <Divider sx={{ my: 4 }} />
+      <StrategyBuilderSection />
       <Divider sx={{ my: 4 }} />
       <IVAnalysisSection />
     </Box>

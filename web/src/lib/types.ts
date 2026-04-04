@@ -224,3 +224,45 @@ export interface IVAnalysisResponse {
   iv_rv_spread: number;
   error: string | null;
 }
+
+// ── Multi-leg Strategy types ────────────────────────────────────────
+
+export interface OptionLegInput {
+  option_type: "c" | "p";
+  action: "buy" | "sell";
+  strike: number;
+  expiration: string;
+  quantity: number;
+  premium: number;
+  iv: number;
+}
+
+export interface MultiLegRequest {
+  legs: OptionLegInput[];
+  spot: number;
+  dte_days: number;
+  risk_free_rate: number;
+}
+
+export interface PnLPoint {
+  price: number;
+  pnl: number;
+}
+
+export interface AggregatedGreeks {
+  delta: number;
+  gamma: number;
+  theta: number;
+  vega: number;
+  rho: number;
+}
+
+export interface MultiLegResponse {
+  net_debit_credit: number;
+  max_profit: number;
+  max_loss: number;
+  breakeven_points: number[];
+  greeks: AggregatedGreeks;
+  pnl_curve: PnLPoint[];
+  error: string | null;
+}

@@ -28,9 +28,11 @@ from app.config import settings
 from app.data_provider import clear_cache as clear_data_cache, get_daily, get_intraday
 from app.greeks import GreeksResult, calculate_greeks
 from app.iv_analysis import IVAnalysisResult, compute_iv_analysis
+from app.multi_leg import OptionLeg, analyze_multi_leg
 from app.indicators import atr, prev_day_high, prev_day_low, rolling_high, rolling_low, session_vwap, sma
 from app.market_regime import MarketRegimeEngine
 from app.models import (
+    AggregatedGreeksModel,
     BacktestMetrics,
     BacktestRequest,
     BacktestResponse,
@@ -39,9 +41,12 @@ from app.models import (
     IVSkewPointModel,
     IVTermPointModel,
     MarketRegimeResult,
+    MultiLegRequest,
+    MultiLegResponse,
     OptionsChainDetail,
     OptionsChainSummary,
     OptionsContract,
+    PnLPointModel,
     Signal,
     SignalLevel,
 )
@@ -708,6 +713,55 @@ async def run_backtest_endpoint(req: BacktestRequest) -> BacktestResponse:
         equity_curve=bt_result.equity_curve,
         trade_count=bt_result.total_trades,
         error=bt_result.error,
+    )
+
+
+# ── Multi-leg strategy analysis ──────────────────────────────────────
+
+
+@app.post("/api/v1/options/multi-leg/analyze", tags=["options"], response_model=MultiLegResponse)
+async def analyze_multi_leg_strategy(req: MultiLegRequest) -> MultiLegResponse:
+    loop = asyncio.get_running_loop()
+
+    legs = [
+        OptionLeg(
+            option_type=leg.option_type,
+            action=leg.action,
+            strike=leg.strike,
+            expiration=leg.expiration,
+            quantity=leg.quantity,
+            premium=leg.premium,
+            iv=leg.iv,
+        )
+        for leg in req.legs
+    ]
+
+    try:
+        result = await loop.run_in_executor(
+            None,
+            lambda: analyze_multi_leg(
+                legs=legs,
+                spot=req.spot,
+                dte_days=req.dte_days,
+                risk_free_rate=req.risk_free_rate,
+            ),
+        )
+    except ValueError as exc:
+        return MultiLegResponse(error=str(exc))
+
+    return MultiLegResponse(
+        net_debit_credit=result.net_debit_credit,
+        max_profit=result.max_profit,
+        max_loss=result.max_loss,
+        breakeven_points=result.breakeven_points,
+        greeks=AggregatedGreeksModel(
+            delta=result.greeks.delta,
+            gamma=result.greeks.gamma,
+            theta=result.greeks.theta,
+            vega=result.greeks.vega,
+            rho=result.greeks.rho,
+        ),
+        pnl_curve=[PnLPointModel(price=p.price, pnl=p.pnl) for p in result.pnl_curve],
     )
 
 

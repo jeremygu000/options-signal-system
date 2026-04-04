@@ -180,3 +180,46 @@ class IVAnalysisResponse(BaseModel):
     hv_points: list[HVPointModel] = Field(default_factory=list)
     iv_rv_spread: float = 0.0
     error: str | None = None
+
+
+# ── Multi-leg strategy models ────────────────────────────────────────
+
+
+class OptionLegModel(BaseModel):
+    option_type: str = Field(description="'c' for call, 'p' for put")
+    action: str = Field(description="'buy' or 'sell'")
+    strike: float = Field(gt=0)
+    expiration: str
+    quantity: int = Field(default=1, ge=1, le=100)
+    premium: float = Field(ge=0, description="Per-share mid price")
+    iv: float = Field(default=0.30, gt=0, le=5.0)
+
+
+class MultiLegRequest(BaseModel):
+    legs: list[OptionLegModel] = Field(min_length=1, max_length=4)
+    spot: float = Field(gt=0)
+    dte_days: int = Field(default=30, ge=0, le=730)
+    risk_free_rate: float = Field(default=0.05, ge=0, le=0.50)
+
+
+class PnLPointModel(BaseModel):
+    price: float
+    pnl: float
+
+
+class AggregatedGreeksModel(BaseModel):
+    delta: float = 0.0
+    gamma: float = 0.0
+    theta: float = 0.0
+    vega: float = 0.0
+    rho: float = 0.0
+
+
+class MultiLegResponse(BaseModel):
+    net_debit_credit: float = 0.0
+    max_profit: float = 0.0
+    max_loss: float = 0.0
+    breakeven_points: list[float] = Field(default_factory=list)
+    greeks: AggregatedGreeksModel = Field(default_factory=AggregatedGreeksModel)
+    pnl_curve: list[PnLPointModel] = Field(default_factory=list)
+    error: str | None = None
