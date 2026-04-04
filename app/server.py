@@ -25,7 +25,13 @@ from pydantic import BaseModel, Field
 
 from app.backtester import BacktestConfig, StrategyType, run_backtest, run_multi_strategy_backtest
 from app.config import settings
-from app.data_provider import clear_cache as clear_data_cache, get_daily, get_intraday
+from app.data_provider import (
+    clear_cache as clear_data_cache,
+    get_available_symbols,
+    get_daily,
+    get_intraday,
+    has_parquet_data,
+)
 from app.database import close_db, get_session, init_db
 from app.greeks import GreeksResult, calculate_greeks
 from app.iv_analysis import IVAnalysisResult, compute_iv_analysis
@@ -60,6 +66,8 @@ from app.models import (
     StrategyGroupResponse,
     TrainingRequest,
     TrainingStatusResponse,
+    SymbolMetaResponse,
+    PaginatedSymbolResult,
 )
 from app.options_data import clear_chain_cache, get_expirations, get_options_chain, get_options_chain_multi
 from app.options_source import get_options_source
@@ -80,6 +88,7 @@ from app.positions import (
     update_position,
 )
 from app.strategy_engine import StrategyEngine
+from app.symbol_discovery import build_metadata_index, clear_discovery_cache, search_symbols
 from app.ml.llm_analyzer import stream_signal_analysis
 from app.ml.pipeline import TrainingStatus, load_status, run_training_pipeline
 from app.ml.regime_classifier import RegimeClassifier
@@ -88,7 +97,7 @@ from app.utils import now_ny
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_SYMBOLS: set[str] = {s.upper() for s in [settings.market_index, settings.volatility_index, *settings.symbols]}
+CORE_SYMBOLS: set[str] = {s.upper() for s in [settings.market_index, settings.volatility_index, *settings.symbols]}
 
 
 # ── Response models ──────────────────────────────────────────────────
@@ -206,8 +215,8 @@ def get_signal_scorer() -> SignalScorer:
 
 def validate_symbol(symbol: str) -> str:
     upper = symbol.upper()
-    if upper not in ALLOWED_SYMBOLS:
-        raise HTTPException(status_code=400, detail=f"Unknown symbol: {symbol}. Allowed: {sorted(ALLOWED_SYMBOLS)}")
+    if upper not in CORE_SYMBOLS and not has_parquet_data(upper):
+        raise HTTPException(status_code=400, detail=f"Unknown symbol: {symbol}. No Parquet data found.")
     return upper
 
 
@@ -254,6 +263,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     get_signal_scorer.cache_clear()
     clear_data_cache()
     clear_chain_cache()
+    clear_discovery_cache()
     await close_db()
     logger.info("Signal system API shutting down")
 
@@ -265,6 +275,7 @@ tags_metadata = [
     {"name": "options", "description": "Options chain & backtesting"},
     {"name": "positions", "description": "Position management & portfolio"},
     {"name": "ml", "description": "ML-enhanced signals, regime & training"},
+    {"name": "discovery", "description": "Symbol discovery & metadata"},
 ]
 
 app = FastAPI(
@@ -497,8 +508,8 @@ async def compare(
         raise HTTPException(status_code=400, detail="Max 10 tickers allowed")
 
     for sym in symbols:
-        if sym not in ALLOWED_SYMBOLS:
-            raise HTTPException(status_code=400, detail=f"Unknown symbol: {sym}. Allowed: {sorted(ALLOWED_SYMBOLS)}")
+        if sym not in CORE_SYMBOLS and not has_parquet_data(sym):
+            raise HTTPException(status_code=400, detail=f"Unknown symbol: {sym}. No Parquet data found.")
 
     loop = asyncio.get_event_loop()
 
@@ -645,8 +656,8 @@ async def greeks_calculate(req: GreeksRequest) -> GreeksResponse:
 @app.get("/api/iv/analysis/{symbol}", response_model=IVAnalysisResponse, include_in_schema=False)
 async def iv_analysis(symbol: str) -> IVAnalysisResponse:
     upper_symbol = symbol.upper()
-    if upper_symbol not in ALLOWED_SYMBOLS:
-        raise HTTPException(status_code=400, detail=f"Unknown symbol: {symbol}. Allowed: {sorted(ALLOWED_SYMBOLS)}")
+    if upper_symbol not in CORE_SYMBOLS and not has_parquet_data(upper_symbol):
+        raise HTTPException(status_code=400, detail=f"Unknown symbol: {symbol}. No Parquet data found.")
 
     loop = asyncio.get_event_loop()
     result: IVAnalysisResult = await loop.run_in_executor(None, compute_iv_analysis, upper_symbol)
@@ -694,8 +705,8 @@ async def iv_analysis(symbol: str) -> IVAnalysisResponse:
 @app.post("/api/backtest", response_model=BacktestResponse, include_in_schema=False)
 async def run_backtest_endpoint(req: BacktestRequest) -> BacktestResponse:
     upper_symbol = req.symbol.upper()
-    if upper_symbol not in ALLOWED_SYMBOLS:
-        raise HTTPException(status_code=400, detail=f"Unknown symbol: {req.symbol}. Allowed: {sorted(ALLOWED_SYMBOLS)}")
+    if upper_symbol not in CORE_SYMBOLS and not has_parquet_data(upper_symbol):
+        raise HTTPException(status_code=400, detail=f"Unknown symbol: {req.symbol}. No Parquet data found.")
 
     try:
         strategy_type = StrategyType(req.strategy)
@@ -1251,3 +1262,61 @@ async def analyze_signal(
             yield f"data: {chunk}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ── Symbol Discovery ─────────────────────────────────────────────────
+
+
+@app.get("/api/v1/symbols/available", response_model=list[str], tags=["discovery"])
+async def get_available() -> list[str]:
+    loop = asyncio.get_event_loop()
+    symbols = await loop.run_in_executor(None, get_available_symbols)
+    return sorted(symbols)
+
+
+@app.get("/api/v1/symbols/search", response_model=PaginatedSymbolResult, tags=["discovery"])
+async def search_symbols_endpoint(
+    query: str | None = Query(default=None, description="Substring match on symbol"),
+    min_volume: float | None = Query(default=None, ge=0, description="Minimum average volume"),
+    min_rows: int | None = Query(default=None, ge=1, description="Minimum data rows"),
+    sort_by: str = Query(default="symbol", pattern="^(symbol|volume|rows|return|last_close)$"),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> PaginatedSymbolResult:
+    loop = asyncio.get_event_loop()
+    items, total = await loop.run_in_executor(None, search_symbols, query, min_volume, min_rows, sort_by, limit, offset)
+    return PaginatedSymbolResult(
+        items=[
+            SymbolMetaResponse(
+                symbol=m.symbol,
+                rows=m.rows,
+                first_date=m.first_date,
+                last_date=m.last_date,
+                avg_volume=m.avg_volume,
+                last_close=m.last_close,
+                return_1y=m.return_1y,
+            )
+            for m in items
+        ],
+        total=total,
+        offset=offset,
+        limit=limit,
+    )
+
+
+@app.get("/api/v1/symbols/metadata", response_model=list[SymbolMetaResponse], tags=["discovery"])
+async def get_all_metadata() -> list[SymbolMetaResponse]:
+    loop = asyncio.get_event_loop()
+    index = await loop.run_in_executor(None, build_metadata_index)
+    return [
+        SymbolMetaResponse(
+            symbol=m.symbol,
+            rows=m.rows,
+            first_date=m.first_date,
+            last_date=m.last_date,
+            avg_volume=m.avg_volume,
+            last_close=m.last_close,
+            return_1y=m.return_1y,
+        )
+        for m in index
+    ]

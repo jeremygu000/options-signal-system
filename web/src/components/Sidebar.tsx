@@ -16,6 +16,7 @@ import Tooltip from "@mui/material/Tooltip";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import ExploreIcon from "@mui/icons-material/Explore";
 import FolderSpecialIcon from "@mui/icons-material/FolderSpecial";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
@@ -28,6 +29,12 @@ const DRAWER_WIDTH = 240;
 
 const NAV_ITEMS = [
   { href: "/", label: "信号看板", sublabel: "Dashboard", Icon: DashboardIcon },
+  {
+    href: "/discover",
+    label: "标的发现",
+    sublabel: "Discover",
+    Icon: ExploreIcon,
+  },
   {
     href: "/compare",
     label: "价格对比",

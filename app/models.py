@@ -346,3 +346,23 @@ class TrainingStatusResponse(BaseModel):
     error: str | None = None
     regime_model_available: bool = False
     scorer_model_available: bool = False
+
+
+# ── Symbol discovery ─────────────────────────────────────────────────
+
+
+class SymbolMetaResponse(BaseModel):
+    symbol: str
+    rows: int
+    first_date: str
+    last_date: str
+    avg_volume: float
+    last_close: float
+    return_1y: float
+
+
+class PaginatedSymbolResult(BaseModel):
+    items: list[SymbolMetaResponse]
+    total: int
+    offset: int
+    limit: int

@@ -12,6 +12,7 @@ from datetime import datetime
 
 import pandas as pd
 
+from app.config import settings
 from app.data_provider import get_daily, get_intraday
 from app.indicators import (
     atr,
@@ -29,9 +30,6 @@ logger = logging.getLogger(__name__)
 
 STRONG_THRESHOLD = 5
 WATCH_THRESHOLD = 3
-
-SHORT_SYMBOLS = {"USO", "XOM", "XLE"}
-LONG_SYMBOLS = {"CRM"}
 
 # ── Option structure suggestions ─────────────────────────────────────
 
@@ -53,13 +51,27 @@ LONG_STRUCTURES = {
 class StrategyEngine:
 
     def evaluate_symbol(self, symbol: str, regime: MarketRegimeResult) -> Signal:
-        if symbol.upper() in SHORT_SYMBOLS:
+        upper = symbol.upper()
+        if upper in settings.short_symbols:
             return self._short_setup(symbol, regime)
-        elif symbol.upper() in LONG_SYMBOLS:
+        elif upper in settings.long_symbols:
             return self._long_setup(symbol, regime)
         else:
-            logger.warning("%s: no strategy configured, defaulting to short bias", symbol)
+            bias = self._auto_detect_bias(symbol)
+            if bias == Bias.LONG:
+                return self._long_setup(symbol, regime)
             return self._short_setup(symbol, regime)
+
+    def _auto_detect_bias(self, symbol: str) -> Bias:
+        daily = get_daily(symbol, days=60)
+        if daily.empty or len(daily) < 20:
+            return Bias.SHORT
+        close = daily["Close"]
+        sma20 = float(close.rolling(20).mean().iloc[-1])
+        current = float(close.iloc[-1])
+        if current > sma20:
+            return Bias.LONG
+        return Bias.SHORT
 
     def _short_setup(self, symbol: str, regime: MarketRegimeResult) -> Signal:
         """逢高做空 — USO / XOM / XLE."""

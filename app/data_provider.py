@@ -41,6 +41,9 @@ def _cache_set(key: str, df: pd.DataFrame) -> None:
     _cache[key] = (time.monotonic(), df)
 
 
+_AVAILABLE_TTL = 600  # 10 minutes — Parquet directory changes rarely
+
+
 def clear_cache() -> None:
     """Evict all cached data (useful on shutdown or for testing)."""
     _cache.clear()
@@ -142,3 +145,26 @@ def get_intraday(
     except Exception:
         logger.exception("%s: failed to fetch intraday data", symbol)
         return pd.DataFrame()
+
+
+def get_available_symbols() -> set[str]:
+    """Scan Parquet directory via DuckDB glob and return all available ticker symbols.
+
+    Results are cached for 10 minutes.
+    """
+    cache_key = "available_symbols"
+    cached = _cache_get(cache_key, _AVAILABLE_TTL)
+    if cached is not None:
+        return set(cached.index)
+
+    from app.symbol_discovery import get_available_symbols_duckdb
+
+    symbols = get_available_symbols_duckdb()
+    if symbols:
+        _cache_set(cache_key, pd.DataFrame(index=list(symbols)))
+    return symbols
+
+
+def has_parquet_data(symbol: str) -> bool:
+    """Check if a symbol has Parquet data available."""
+    return _parquet_path(symbol).exists()

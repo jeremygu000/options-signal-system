@@ -383,3 +383,22 @@ export interface TrainingStatusResponse {
   regime_model_available: boolean;
   scorer_model_available: boolean;
 }
+
+// ── Symbol Discovery types ──────────────────────────────────────────
+
+export interface SymbolMeta {
+  symbol: string;
+  rows: number;
+  first_date: string;
+  last_date: string;
+  avg_volume: number;
+  last_close: number;
+  return_1y: number;
+}
+
+export interface PaginatedSymbolResult {
+  items: SymbolMeta[];
+  total: number;
+  offset: number;
+  limit: number;
+}

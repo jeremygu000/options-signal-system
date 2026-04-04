@@ -24,6 +24,14 @@ class Settings(BaseSettings):
         default=["USO", "XOM", "XLE", "CRM"],
         description="Trading symbols to evaluate",
     )
+    short_symbols: set[str] = Field(
+        default={"USO", "XOM", "XLE"},
+        description="Symbols with short (bearish) bias",
+    )
+    long_symbols: set[str] = Field(
+        default={"CRM"},
+        description="Symbols with long (bullish) bias",
+    )
     market_index: str = "QQQ"
     volatility_index: str = "^VIX"
 

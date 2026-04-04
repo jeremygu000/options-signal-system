@@ -24,6 +24,8 @@ import type {
   EnhancedSignal,
   MLRegimeResponse,
   TrainingStatusResponse,
+  SymbolMeta,
+  PaginatedSymbolResult,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8400";
@@ -362,4 +364,34 @@ export async function analyzeSignal(
     }
   }
   onDone();
+}
+
+export function fetchAvailableSymbols(): Promise<string[]> {
+  return fetcher<string[]>("/api/v1/symbols/available");
+}
+
+export function searchSymbols(params?: {
+  query?: string;
+  min_volume?: number;
+  min_rows?: number;
+  sort_by?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PaginatedSymbolResult> {
+  const qs = new URLSearchParams();
+  if (params?.query) qs.set("query", params.query);
+  if (params?.min_volume != null)
+    qs.set("min_volume", String(params.min_volume));
+  if (params?.min_rows != null) qs.set("min_rows", String(params.min_rows));
+  if (params?.sort_by) qs.set("sort_by", params.sort_by);
+  if (params?.limit != null) qs.set("limit", String(params.limit));
+  if (params?.offset != null) qs.set("offset", String(params.offset));
+  const q = qs.toString();
+  return fetcher<PaginatedSymbolResult>(
+    `/api/v1/symbols/search${q ? `?${q}` : ""}`,
+  );
+}
+
+export function fetchSymbolsMetadata(): Promise<SymbolMeta[]> {
+  return fetcher<SymbolMeta[]>("/api/v1/symbols/metadata");
 }
