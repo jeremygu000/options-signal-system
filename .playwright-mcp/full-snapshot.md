@@ -1,0 +1,311 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - link "O Options Signal v1.0.0" [ref=e444] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]:
+          - paragraph [ref=e9]: O
+          - generic [ref=e10]:
+            - paragraph [ref=e11]: Options Signal
+            - paragraph [ref=e12]: v1.0.0
+      - list [ref=e13]:
+        - link "信号看板 Dashboard" [ref=e445] [cursor=pointer]:
+          - /url: /
+          - img [ref=e16]
+          - generic [ref=e18]:
+            - generic [ref=e19]: 信号看板
+            - paragraph [ref=e20]: Dashboard
+        - link "价格对比 Compare" [ref=e446] [cursor=pointer]:
+          - /url: /compare
+          - img [ref=e23]
+          - generic [ref=e25]:
+            - generic [ref=e26]: 价格对比
+            - paragraph [ref=e27]: Compare
+        - link "期权工具 Options" [ref=e447] [cursor=pointer]:
+          - /url: /options
+          - img [ref=e30]
+          - generic [ref=e32]:
+            - generic [ref=e33]: 期权工具
+            - paragraph [ref=e34]: Options
+      - separator [ref=e36]
+      - generic [ref=e38]:
+        - paragraph [ref=e39]: Light
+        - button "Switch to dark mode" [ref=e448] [cursor=pointer]:
+          - img [ref=e41]
+      - generic [ref=e43]:
+        - generic [ref=e44]:
+          - paragraph [ref=e45]: API
+          - paragraph [ref=e48]: Live
+        - generic [ref=e49]:
+          - paragraph [ref=e50]: http://localhost:8300
+          - paragraph [ref=e159]: 7ms
+        - generic [ref=e160]:
+          - paragraph [ref=e163]: QQQ
+          - paragraph [ref=e166]: ^VIX
+          - paragraph [ref=e169]: USO
+          - paragraph [ref=e172]: XOM
+          - paragraph [ref=e175]: XLE
+          - paragraph [ref=e178]: CRM
+        - generic [ref=e179]:
+          - paragraph [ref=e180]: 0.1.0
+          - paragraph [ref=e181]: 12:00:51 PM
+    - main [ref=e51]:
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - heading "期权工具" [level=5] [ref=e449]
+          - paragraph [ref=e55]: Options Tools — Expirations, Chain, Backtest Simulator
+        - generic [ref=e56]:
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - generic [ref=e60]: "01"
+              - heading "到期日浏览" [level=6] [ref=e450]
+              - paragraph [ref=e62]: Expirations Browser
+            - separator [ref=e63]
+          - generic [ref=e183]:
+            - generic [ref=e184]: 选择标的 Select Symbol
+            - generic [ref=e185]:
+              - combobox "选择标的 Select Symbol" [ref=e451]: QQQ
+              - button "Open" [ref=e452] [cursor=pointer]:
+                - img [ref=e189]
+              - group:
+                - generic: 选择标的 Select Symbol
+          - paragraph [ref=e191]: 共 28 个到期日 · 28 expirations available
+          - generic [ref=e192]:
+            - generic [ref=e195]:
+              - generic [ref=e196]: 2026-04-06
+              - generic [ref=e197]: 2d
+            - generic [ref=e200]:
+              - generic [ref=e201]: 2026-04-07
+              - generic [ref=e202]: 3d
+            - generic [ref=e205]:
+              - generic [ref=e206]: 2026-04-08
+              - generic [ref=e207]: 4d
+            - generic [ref=e210]:
+              - generic [ref=e211]: 2026-04-09
+              - generic [ref=e212]: 5d
+            - generic [ref=e215]:
+              - generic [ref=e216]: 2026-04-10
+              - generic [ref=e217]: 6d
+            - generic [ref=e220]:
+              - generic [ref=e221]: 2026-04-17
+              - generic [ref=e222]: 13d
+            - generic [ref=e225]:
+              - generic [ref=e226]: 2026-04-24
+              - generic [ref=e227]: 20d
+            - generic [ref=e230]:
+              - generic [ref=e231]: 2026-04-30
+              - generic [ref=e232]: 26d
+            - generic [ref=e235]:
+              - generic [ref=e236]: 2026-05-01
+              - generic [ref=e237]: 27d
+            - generic [ref=e240]:
+              - generic [ref=e241]: 2026-05-08
+              - generic [ref=e242]: 34d
+            - generic [ref=e245]:
+              - generic [ref=e246]: 2026-05-15
+              - generic [ref=e247]: 41d
+            - generic [ref=e250]:
+              - generic [ref=e251]: 2026-05-29
+              - generic [ref=e252]: 55d
+            - generic [ref=e255]:
+              - generic [ref=e256]: 2026-06-18
+              - generic [ref=e257]: 75d
+            - generic [ref=e260]:
+              - generic [ref=e261]: 2026-06-30
+              - generic [ref=e262]: 87d
+            - generic [ref=e265]:
+              - generic [ref=e266]: 2026-08-21
+              - generic [ref=e267]: 139d
+            - generic [ref=e270]:
+              - generic [ref=e271]: 2026-09-18
+              - generic [ref=e272]: 167d
+            - generic [ref=e275]:
+              - generic [ref=e276]: 2026-09-30
+              - generic [ref=e277]: 179d
+            - generic [ref=e280]:
+              - generic [ref=e281]: 2026-10-16
+              - generic [ref=e282]: 195d
+            - generic [ref=e285]:
+              - generic [ref=e286]: 2026-12-18
+              - generic [ref=e287]: 258d
+            - generic [ref=e290]:
+              - generic [ref=e291]: 2026-12-31
+              - generic [ref=e292]: 271d
+            - generic [ref=e295]:
+              - generic [ref=e296]: 2027-01-15
+              - generic [ref=e297]: 286d
+            - generic [ref=e300]:
+              - generic [ref=e301]: 2027-03-19
+              - generic [ref=e302]: 349d
+            - generic [ref=e305]:
+              - generic [ref=e306]: 2027-06-17
+              - generic [ref=e307]: 439d
+            - generic [ref=e310]:
+              - generic [ref=e311]: 2027-09-17
+              - generic [ref=e312]: 531d
+            - generic [ref=e315]:
+              - generic [ref=e316]: 2027-12-17
+              - generic [ref=e317]: 622d
+            - generic [ref=e320]:
+              - generic [ref=e321]: 2028-01-21
+              - generic [ref=e322]: 657d
+            - generic [ref=e325]:
+              - generic [ref=e326]: 2028-06-16
+              - generic [ref=e327]: 804d
+            - generic [ref=e330]:
+              - generic [ref=e331]: 2028-12-15
+              - generic [ref=e332]: 986d
+          - generic [ref=e333]:
+            - generic [ref=e336]: ≤14d 近月
+            - generic [ref=e339]: 15–45d 中期
+            - generic [ref=e342]: ">45d 远月"
+        - generic [ref=e65]:
+          - generic [ref=e66]:
+            - generic [ref=e67]:
+              - generic [ref=e69]: "02"
+              - heading "期权链概览" [level=6] [ref=e453]
+              - paragraph [ref=e71]: Options Chain Summary
+            - separator [ref=e72]
+          - generic [ref=e344]:
+            - generic [ref=e345]: 选择标的 Select Symbol
+            - generic [ref=e346]:
+              - combobox "选择标的 Select Symbol" [ref=e454]: QQQ
+              - button "Open" [ref=e455] [cursor=pointer]:
+                - img [ref=e350]
+              - group:
+                - generic: 选择标的 Select Symbol
+          - generic [ref=e352]:
+            - generic [ref=e355]:
+              - text: 总合约数
+              - paragraph [ref=e356]: Total Contracts
+              - heading "635" [level=5] [ref=e456]
+            - generic [ref=e360]:
+              - text: 看涨期权
+              - paragraph [ref=e361]: Calls
+              - heading "324" [level=5] [ref=e457]
+              - generic [ref=e363]: 51.02%
+            - generic [ref=e366]:
+              - text: 看跌期权
+              - paragraph [ref=e367]: Puts
+              - heading "311" [level=5] [ref=e458]
+              - generic [ref=e369]: 48.98%
+            - generic [ref=e372]:
+              - text: 到期日数量
+              - paragraph [ref=e373]: Expirations
+              - heading "4" [level=5] [ref=e459]
+          - generic [ref=e376]:
+            - paragraph [ref=e377]: 看涨/看跌比率 · Call/Put Ratio
+            - generic [ref=e381]:
+              - generic [ref=e382]: Calls 51.02%
+              - generic [ref=e383]: Puts 48.98%
+          - generic [ref=e385]:
+            - paragraph [ref=e386]: 可用到期日 · Available Expirations
+            - generic [ref=e387]:
+              - generic [ref=e389]: 2026-04-06
+              - generic [ref=e391]: 2026-04-07
+              - generic [ref=e393]: 2026-04-08
+              - generic [ref=e395]: 2026-04-09
+        - generic [ref=e74]:
+          - generic [ref=e75]:
+            - generic [ref=e76]:
+              - generic [ref=e78]: "03"
+              - heading "回测模拟器" [level=6] [ref=e460]
+              - paragraph [ref=e80]: Backtest Simulator
+            - separator [ref=e81]
+          - alert [ref=e473]:
+            - img [ref=e475]
+            - generic [ref=e477]: No options data available for this symbol
+            - button "Close" [ref=e479] [cursor=pointer]:
+              - img [ref=e480]
+          - generic [ref=e83]:
+            - paragraph [ref=e84]: 策略配置 · Strategy Configuration
+            - generic [ref=e85]:
+              - generic [ref=e396]:
+                - generic [ref=e397]: 标的 Symbol
+                - generic [ref=e398]:
+                  - combobox [ref=e399] [cursor=pointer]: QQQ
+                  - textbox: QQQ
+                  - img
+                  - group:
+                    - generic: 标的 Symbol
+              - generic [ref=e89]:
+                - generic [ref=e90]: 策略 Strategy
+                - generic [ref=e91]:
+                  - combobox [ref=e92] [cursor=pointer]: Short Puts
+                  - textbox: short_puts
+                  - img
+                  - group:
+                    - generic: 策略 Strategy
+            - separator [ref=e93]
+            - paragraph [ref=e94]: 参数设置 · Parameters
+            - generic [ref=e95]:
+              - generic [ref=e97]:
+                - generic [ref=e98]: Max Entry DTE
+                - generic [ref=e99]:
+                  - spinbutton "Max Entry DTE" [ref=e461]: "45"
+                  - group:
+                    - generic: Max Entry DTE
+              - generic [ref=e102]:
+                - generic [ref=e103]: Exit DTE
+                - generic [ref=e104]:
+                  - spinbutton "Exit DTE" [ref=e462]: "0"
+                  - group:
+                    - generic: Exit DTE
+              - generic [ref=e107]:
+                - generic [ref=e108]: Leg 1 Delta
+                - generic [ref=e109]:
+                  - spinbutton "Leg 1 Delta" [ref=e463]: "0.3"
+                  - group:
+                    - generic: Leg 1 Delta
+              - generic [ref=e112]:
+                - generic [ref=e113]: Leg 2 Delta
+                - generic [ref=e114]:
+                  - spinbutton "Leg 2 Delta" [ref=e464]: "0.1"
+                  - group:
+                    - generic: Leg 2 Delta
+              - generic [ref=e117]:
+                - generic [ref=e118]: Capital ($)
+                - generic [ref=e119]:
+                  - spinbutton "Capital ($)" [ref=e465]: "100000"
+                  - group:
+                    - generic: Capital ($)
+              - generic [ref=e122]:
+                - generic [ref=e123]: Quantity
+                - generic [ref=e124]:
+                  - spinbutton "Quantity" [ref=e466]: "1"
+                  - group:
+                    - generic: Quantity
+              - generic [ref=e127]:
+                - generic [ref=e128]: Max Positions
+                - generic [ref=e129]:
+                  - spinbutton "Max Positions" [ref=e467]: "5"
+                  - group:
+                    - generic: Max Positions
+              - generic [ref=e132]:
+                - generic [ref=e133]: Commission/Contract ($)
+                - generic [ref=e134]:
+                  - spinbutton "Commission/Contract ($)" [ref=e468]: "0.5"
+                  - group:
+                    - generic: Commission/Contract ($)
+              - generic [ref=e137]:
+                - generic: Stop Loss (%) — optional
+                - generic [ref=e138]:
+                  - spinbutton "Stop Loss (%) — optional" [ref=e469]
+                  - group:
+                    - generic: Stop Loss (%) — optional
+              - generic [ref=e141]:
+                - generic: Take Profit (%) — optional
+                - generic [ref=e142]:
+                  - spinbutton "Take Profit (%) — optional" [ref=e470]
+                  - group:
+                    - generic: Take Profit (%) — optional
+              - generic [ref=e145]:
+                - generic [ref=e146]: Max Expirations
+                - generic [ref=e147]:
+                  - spinbutton "Max Expirations" [ref=e471]: "4"
+                  - group:
+                    - generic: Max Expirations
+            - button "运行回测 Run Backtest" [ref=e472] [cursor=pointer]: 运行回测 Run Backtest
+  - button "Open Next.js Dev Tools" [ref=e155] [cursor=pointer]:
+    - img [ref=e156]
+  - alert [ref=e401]

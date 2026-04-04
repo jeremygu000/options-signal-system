@@ -35,6 +35,7 @@ from app.models import (
     SignalLevel,
 )
 from app.options_data import clear_chain_cache, get_expirations, get_options_chain_multi
+from app.options_source import get_options_source
 from app.strategy_engine import StrategyEngine
 from app.utils import now_ny
 
@@ -486,9 +487,12 @@ async def run_backtest_endpoint(req: BacktestRequest) -> BacktestResponse:
 
     loop = asyncio.get_event_loop()
 
-    options_data, daily_data = await asyncio.gather(
-        loop.run_in_executor(None, get_options_chain_multi, upper_symbol, req.max_expirations),
-        loop.run_in_executor(None, get_daily, upper_symbol, 365),
+    daily_data = await loop.run_in_executor(None, get_daily, upper_symbol, 365)
+
+    source = get_options_source("synthetic")
+    options_data = await loop.run_in_executor(
+        None,
+        lambda: source.get_historical_chain(upper_symbol, daily_data),
     )
 
     if options_data.empty:

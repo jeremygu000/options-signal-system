@@ -55,7 +55,16 @@ def _sanitize_ticker(ticker: str) -> str:
 
 
 def _parquet_path(ticker: str) -> Path:
-    return settings.parquet_dir / f"{_sanitize_ticker(ticker)}.parquet"
+    """Resolve Parquet path, trying both {SYMBOL}.parquet and {SYMBOL}_1d.parquet."""
+    base = settings.parquet_dir
+    sanitized = _sanitize_ticker(ticker)
+    # Prefer {SYMBOL}.parquet, fall back to {SYMBOL}_1d.parquet (yahoo-finance-data format)
+    path = base / f"{sanitized}.parquet"
+    if not path.exists():
+        alt = base / f"{sanitized}_1d.parquet"
+        if alt.exists():
+            return alt
+    return path
 
 
 # ── Public API ───────────────────────────────────────────────────────
