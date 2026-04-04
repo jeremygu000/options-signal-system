@@ -25,6 +25,7 @@ import {
   fetchExpirations,
   fetchOptionsChain,
   runBacktest,
+  interpretBacktest,
 } from "@/lib/api";
 import type {
   SymbolInfo,
@@ -678,6 +679,11 @@ function BacktestSimulator() {
   const [result, setResult] = useState<BacktestResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [aiText, setAiText] = useState("");
+  const [aiStreaming, setAiStreaming] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const aiPanelRef = useRef<HTMLDivElement>(null);
+
   const [params, setParams] = useState<BacktestParams>({
     symbol: "",
     strategy: "short_call_spread",
@@ -717,6 +723,8 @@ function BacktestSimulator() {
     setRunning(true);
     setResult(null);
     setError(null);
+    setAiText("");
+    setAiError(null);
 
     const req: BacktestRequest = {
       symbol: params.symbol,
@@ -743,6 +751,42 @@ function BacktestSimulator() {
     } finally {
       setRunning(false);
     }
+  }
+
+  async function handleInterpret() {
+    if (!result || result.error) return;
+    setAiText("");
+    setAiError(null);
+    setAiStreaming(true);
+
+    const m = result.metrics;
+    await interpretBacktest(
+      {
+        symbol: result.symbol,
+        strategy: result.strategy,
+        trade_count: result.trade_count,
+        metrics: {
+          total_trades: m.total_trades,
+          win_rate: m.win_rate,
+          mean_return: m.mean_return,
+          sharpe_ratio: m.sharpe_ratio,
+          sortino_ratio: m.sortino_ratio,
+          max_drawdown: m.max_drawdown,
+          profit_factor: m.profit_factor,
+          calmar_ratio: m.calmar_ratio,
+          final_equity: m.final_equity,
+        },
+      },
+      (token) => {
+        setAiText((prev) => prev + token);
+        aiPanelRef.current?.scrollTo({ top: aiPanelRef.current.scrollHeight, behavior: "smooth" });
+      },
+      (err) => {
+        setAiError(err);
+        setAiStreaming(false);
+      },
+      () => setAiStreaming(false),
+    );
   }
 
   const metricCards = result && !result.error ? renderMetrics(result.metrics) : [];
@@ -1004,6 +1048,71 @@ function BacktestSimulator() {
               )}
             </CardContent>
           </Card>
+
+          <Box sx={{ mt: 3 }}>
+            <Button
+              variant="contained"
+              onClick={handleInterpret}
+              disabled={aiStreaming}
+              startIcon={aiStreaming ? <CircularProgress size={16} color="inherit" /> : null}
+              sx={{
+                bgcolor: "#7c4dff",
+                px: 3,
+                py: 1,
+                fontWeight: 700,
+                fontSize: "0.85rem",
+                "&:hover": { bgcolor: "#651fff" },
+                mb: 2,
+              }}
+            >
+              {aiStreaming ? "分析中..." : "🤖 AI 解读 · AI Interpretation"}
+            </Button>
+
+            {aiError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {aiError}
+              </Alert>
+            )}
+
+            {(aiText || aiStreaming) && (
+              <Card sx={{ border: "1px solid rgba(124,77,255,0.25)" }}>
+                <CardContent>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5, color: "#7c4dff" }}>
+                    🤖 AI 分析 · AI Analysis
+                  </Typography>
+                  <Box
+                    ref={aiPanelRef}
+                    sx={{
+                      maxHeight: 400,
+                      overflow: "auto",
+                      whiteSpace: "pre-wrap",
+                      fontSize: "0.85rem",
+                      lineHeight: 1.7,
+                      color: "text.primary",
+                    }}
+                  >
+                    {aiText}
+                    {aiStreaming && (
+                      <Box
+                        component="span"
+                        sx={{
+                          display: "inline-block",
+                          width: 6,
+                          height: 14,
+                          bgcolor: "#7c4dff",
+                          ml: 0.3,
+                          animation: "blink 1s step-end infinite",
+                          "@keyframes blink": {
+                            "50%": { opacity: 0 },
+                          },
+                        }}
+                      />
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+            )}
+          </Box>
         </>
       )}
     </Box>

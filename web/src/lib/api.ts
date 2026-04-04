@@ -88,3 +88,66 @@ export function runBacktest(req: BacktestRequest): Promise<BacktestResponse> {
     body: JSON.stringify(req),
   });
 }
+
+export interface InterpretBacktestPayload {
+  symbol: string;
+  strategy: string;
+  trade_count: number;
+  metrics: Record<string, number>;
+  equity_curve_summary?: string;
+}
+
+export async function interpretBacktest(
+  payload: InterpretBacktestPayload,
+  onToken: (token: string) => void,
+  onError: (error: string) => void,
+  onDone: () => void,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/api/v1/backtest/interpret`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok || !res.body) {
+    onError(`API error ${res.status}`);
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const json = line.slice(6);
+      try {
+        const parsed = JSON.parse(json) as {
+          token?: string;
+          done?: boolean;
+          error?: string;
+        };
+        if (parsed.error) {
+          onError(parsed.error);
+          return;
+        }
+        if (parsed.token) onToken(parsed.token);
+        if (parsed.done) {
+          onDone();
+          return;
+        }
+      } catch {
+        /* empty */
+      }
+    }
+  }
+  onDone();
+}

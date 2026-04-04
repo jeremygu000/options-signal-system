@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     backtest_capital: float = Field(default=100_000.0, description="Default starting capital")
     backtest_commission: float = Field(default=0.65, description="Commission per contract")
 
+    # ── AI / Ollama ──────────────────────────────────────────────────
+    ollama_base_url: str = Field(default="http://localhost:11434", description="Ollama API base URL")
+    ollama_model: str = Field(default="qwen3:32b", description="Ollama model name for AI interpretation")
+
     @property
     def telegram_enabled(self) -> bool:
         return bool(self.telegram_bot_token.get_secret_value() and self.telegram_chat_id.get_secret_value())

@@ -7,6 +7,7 @@ Start:
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import logging
 import time
 import uuid
@@ -17,6 +18,8 @@ from typing import Annotated, AsyncIterator
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+import httpx
 import pandas as pd
 from pydantic import BaseModel, Field
 
@@ -549,3 +552,81 @@ async def run_backtest_endpoint(req: BacktestRequest) -> BacktestResponse:
         trade_count=bt_result.total_trades,
         error=bt_result.error,
     )
+
+
+# ── AI Interpretation (Ollama streaming) ─────────────────────────────
+
+
+class BacktestInterpretRequest(BaseModel):
+    """Payload for AI-driven backtest interpretation."""
+
+    symbol: str
+    strategy: str
+    trade_count: int
+    metrics: dict[str, float]
+    equity_curve_summary: str = Field(
+        default="",
+        description="Optional summary of equity curve shape (e.g. 'uptrend with 15% drawdown mid-period')",
+    )
+
+
+def _build_interpret_prompt(req: BacktestInterpretRequest) -> str:
+    """Build a structured prompt for the Ollama model."""
+    metrics_text = "\n".join(f"  - {k}: {v}" for k, v in req.metrics.items())
+    return (
+        "You are an expert options trading analyst. "
+        "Analyze the following backtest results and provide a concise, actionable interpretation. "
+        "Output in bilingual format: Chinese first, then English.\n\n"
+        f"## Backtest Summary\n"
+        f"- Symbol: {req.symbol}\n"
+        f"- Strategy: {req.strategy}\n"
+        f"- Total Trades: {req.trade_count}\n"
+        f"- Metrics:\n{metrics_text}\n"
+        + (f"- Equity Curve: {req.equity_curve_summary}\n" if req.equity_curve_summary else "")
+        + "\n"
+        "## Required Analysis\n"
+        "1. Overall assessment (is this strategy profitable and robust?)\n"
+        "2. Risk analysis (drawdown, Sharpe, Sortino interpretation)\n"
+        "3. Key strengths and weaknesses\n"
+        "4. Actionable suggestions for improvement\n\n"
+        "Keep it concise (under 500 words total). Use bullet points."
+    )
+
+
+@app.post("/api/v1/backtest/interpret", tags=["options"])
+async def interpret_backtest(req: BacktestInterpretRequest) -> StreamingResponse:
+    """Stream AI interpretation of backtest results via Ollama."""
+    prompt = _build_interpret_prompt(req)
+
+    async def generate() -> AsyncIterator[str]:
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
+            ) as client:
+                async with client.stream(
+                    "POST",
+                    f"{settings.ollama_base_url}/api/generate",
+                    json={"model": settings.ollama_model, "prompt": prompt, "stream": True},
+                ) as resp:
+                    if resp.status_code != 200:
+                        yield f'data: {{"error": "Ollama returned {resp.status_code}"}}\n\n'
+                        return
+                    async for line in resp.aiter_lines():
+                        if not line:
+                            continue
+                        try:
+                            chunk = _json.loads(line)
+                        except _json.JSONDecodeError:
+                            continue
+                        token = chunk.get("response", "")
+                        if token:
+                            yield f"data: {_json.dumps({'token': token})}\n\n"
+                        if chunk.get("done"):
+                            yield 'data: {"done": true}\n\n'
+                            return
+        except httpx.ConnectError:
+            yield 'data: {"error": "Cannot connect to Ollama. Is it running?"}\n\n'
+        except Exception as exc:
+            yield f'data: {{"error": "{str(exc)[:200]}"}}\n\n'
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
