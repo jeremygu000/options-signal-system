@@ -16,6 +16,7 @@ import Tooltip from "@mui/material/Tooltip";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import FolderSpecialIcon from "@mui/icons-material/FolderSpecial";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -39,7 +40,13 @@ const NAV_ITEMS = [
     sublabel: "Options",
     Icon: AccountBalanceIcon,
   },
-] as const;
+  {
+    href: "/positions",
+    label: "持仓管理",
+    sublabel: "Positions",
+    Icon: FolderSpecialIcon,
+  },
+];
 
 function isNavActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";

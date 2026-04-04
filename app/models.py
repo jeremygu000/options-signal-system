@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -223,3 +223,83 @@ class MultiLegResponse(BaseModel):
     greeks: AggregatedGreeksModel = Field(default_factory=AggregatedGreeksModel)
     pnl_curve: list[PnLPointModel] = Field(default_factory=list)
     error: str | None = None
+
+
+# ── Position management models ───────────────────────────────────────
+
+
+class PositionCreate(BaseModel):
+    symbol: str = Field(min_length=1, max_length=10)
+    option_type: str = Field(pattern=r"^(call|put)$")
+    strike: float = Field(gt=0)
+    expiration: date
+    quantity: int = Field(description="Positive=long, negative=short, cannot be 0")
+    entry_price: float = Field(ge=0)
+    entry_date: datetime | None = None
+    entry_commission: float = Field(default=0.0, ge=0)
+    strategy_name: str | None = None
+    tags: str = ""
+    notes: str = ""
+
+
+class PositionUpdate(BaseModel):
+    notes: str | None = None
+    tags: str | None = None
+    strategy_name: str | None = None
+    entry_price: float | None = Field(default=None, ge=0)
+    entry_commission: float | None = Field(default=None, ge=0)
+    quantity: int | None = None
+
+
+class PositionClose(BaseModel):
+    exit_price: float = Field(ge=0)
+    exit_commission: float = Field(default=0.0, ge=0)
+    exit_date: datetime | None = None
+
+
+class PositionResponse(BaseModel):
+    id: str
+    symbol: str
+    option_type: str
+    strike: float
+    expiration: date
+    quantity: int
+    entry_price: float
+    entry_date: datetime
+    entry_commission: float
+    exit_price: float | None
+    exit_date: datetime | None
+    exit_commission: float
+    status: str
+    delta: float
+    gamma: float
+    theta: float
+    vega: float
+    rho: float
+    strategy_name: str | None
+    tags: str
+    notes: str
+    created_at: datetime
+    updated_at: datetime
+    unrealized_pnl: float | None = None
+    realized_pnl: float | None = None
+    total_cost: float | None = None
+
+
+class PortfolioSummaryResponse(BaseModel):
+    total_positions: int = 0
+    open_positions: int = 0
+    closed_positions: int = 0
+    expired_positions: int = 0
+    total_unrealized_pnl: float = 0.0
+    total_realized_pnl: float = 0.0
+    total_cost: float = 0.0
+    greeks: AggregatedGreeksModel = Field(default_factory=AggregatedGreeksModel)
+
+
+class StrategyGroupResponse(BaseModel):
+    strategy_name: str
+    position_count: int
+    open_count: int
+    total_realized_pnl: float
+    positions: list[PositionResponse] = Field(default_factory=list)

@@ -1,4 +1,6 @@
-# Options Signal System
+<div align="center">
+
+# 📈 Options Signal System
 
 [![CI](https://github.com/jeremygu000/otpions-signal-system/actions/workflows/ci.yml/badge.svg)](https://github.com/jeremygu000/otpions-signal-system/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
@@ -6,7 +8,9 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![mypy: strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy-lang.org/)
 
-Full-stack options trading signal & analysis platform. Evaluates market regime (QQQ + VIX), generates directional signals, and provides a comprehensive options analysis toolkit — Greeks calculator, IV analysis, multi-leg strategy builder, backtesting with AI interpretation. **Signal system only — no auto-execution.**
+Full-stack options trading signal & analysis platform. Evaluates market regime (QQQ + VIX), generates directional signals, and provides a comprehensive options analysis toolkit — Greeks calculator, IV analysis, multi-leg strategy builder, backtesting with AI interpretation, and position management with portfolio analytics. **Signal system only — no auto-execution.**
+
+</div>
 
 ## Features
 
@@ -25,8 +29,16 @@ Full-stack options trading signal & analysis platform. Evaluates market regime (
 - **Backtesting** — Historical strategy backtesting with equity curves and trade logs
 - **AI backtest interpretation** — Ollama-powered streaming analysis of backtest results
 
+### Position Management
+- **Full CRUD** — Add, edit, close, and delete option positions with strategy tagging
+- **Portfolio summary** — Total cost, unrealized/realized P&L, position counts by status
+- **Aggregated Greeks** — Real-time portfolio-level delta, gamma, theta, vega, rho
+- **Strategy grouping** — Group positions by strategy name with per-group P&L analytics
+- **Expiration alerts** — Highlight positions expiring within configurable days window
+- **SQLite storage** — Async SQLAlchemy ORM with PostgreSQL-ready schema
+
 ### Web Dashboard
-- **5 pages** — Dashboard, Signal Detail, Symbol Detail, Comparison, Options Tools
+- **6 pages** — Dashboard, Signal Detail, Symbol Detail, Comparison, Options Tools, Position Management
 - **Dark/light theme** — System-aware with manual toggle
 - **Real-time charts** — TradingView lightweight-charts for candlestick, P&L, IV skew, term structure
 
@@ -56,12 +68,15 @@ options-signal-system/
     synthetic_options.py  # Synthetic historical options chain generator
     iv_analysis.py        # IV rank, percentile, skew, term structure, HV
     multi_leg.py          # Multi-leg strategy analyzer (P&L, breakevens, Greeks)
+    database.py           # Async SQLAlchemy engine, session factory, init/close
+    position_models.py    # SQLAlchemy ORM model (Position table)
+    positions.py          # Position CRUD, P&L calc, Greeks aggregation, alerts
     report.py             # Chinese-language console + notification report builder
     notifier.py           # Telegram + WeChat + CompositeNotifier
-    server.py             # FastAPI REST API (port 8300, 16 endpoints)
+    server.py             # FastAPI REST API (port 8300, 26 endpoints)
     main.py               # CLI entry point
     utils.py              # Timezone helpers, market hours check, logging
-  tests/                  # 174 tests (pytest)
+  tests/                  # 211 tests (pytest)
   web/                    # Next.js dashboard (see Web Dashboard section)
   .github/workflows/      # CI + Release pipelines
   Dockerfile              # Backend container (Python 3.12 slim + uv)
@@ -164,6 +179,16 @@ All endpoints are available at `/api/v1/...` (canonical) and `/api/...` (legacy 
 | `/api/v1/options/multi-leg/analyze`      | POST   | Multi-leg strategy P&L, breakevens, aggregated Greeks    |
 | `/api/v1/backtest`                       | POST   | Run historical backtest                                  |
 | `/api/v1/backtest/interpret`             | POST   | AI interpretation of backtest results (SSE streaming)    |
+| `/api/v1/positions`                      | POST   | Create a new option position                             |
+| `/api/v1/positions`                      | GET    | List positions (filter by status, symbol, strategy)      |
+| `/api/v1/positions/{id}`                 | GET    | Get single position by ID                                |
+| `/api/v1/positions/{id}`                 | PUT    | Update position fields                                   |
+| `/api/v1/positions/{id}/close`           | POST   | Close a position with exit price                         |
+| `/api/v1/positions/{id}`                 | DELETE | Delete a position                                        |
+| `/api/v1/portfolio/summary`              | GET    | Portfolio summary with aggregated Greeks                  |
+| `/api/v1/portfolio/strategies`           | GET    | Positions grouped by strategy with P&L totals            |
+| `/api/v1/positions/alerts/expiring`      | GET    | Positions expiring within N days                         |
+| `/api/v1/positions/batch/mark-expired`   | POST   | Batch-mark expired positions                             |
 
 ## Strategy Overview
 
@@ -243,6 +268,7 @@ The web dashboard is a Next.js application at `web/` providing real-time visuali
 | Symbol Detail                   | `/symbol/[s]` | Full-page candlestick + volume charts, indicator overlays                |
 | Price Comparison                | `/compare`    | Normalized multi-line comparison of selected symbols                     |
 | Options Tools                   | `/options`    | All options analysis tools (see below)                                   |
+| Position Management             | `/positions`  | Portfolio summary, Greeks, positions CRUD table, strategy groups, alerts |
 
 ### Options Tools Page (`/options`)
 
@@ -282,7 +308,7 @@ uv run mypy app/                 # Type check
 
 | Tool     | Command                       | Scope                              |
 | -------- | ----------------------------- | ---------------------------------- |
-| pytest   | `uv run pytest`               | Unit tests (174 tests)             |
+| pytest   | `uv run pytest`               | Unit tests (211 tests)             |
 | black    | `uv run black app/ tests/`    | Code formatting                    |
 | mypy     | `uv run mypy app/`            | Static type checking (strict mode) |
 | tsgo     | `npm run typecheck` (in web/) | TypeScript type checking           |
@@ -331,8 +357,6 @@ Required tickers in the Parquet store: `QQQ`, `VIX` (stored as `VIX.parquet` fro
 ## Future Extensions
 
 - **IBKR integration** — Connect to Interactive Brokers for live options chain data and real strike selection
-- **Position management** — Track open positions, P&L, risk metrics
-- **Database storage** — Persist signals to SQLite/PostgreSQL for historical analysis
 - **ML enhancement** — Machine learning models for signal scoring and volatility prediction
 - **Additional symbols** — Add more ETFs, stocks, or sector-specific strategies
 - **Scheduled execution** — launchd/systemd/cron for automated periodic scanning

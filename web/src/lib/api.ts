@@ -15,6 +15,12 @@ import type {
   IVAnalysisResponse,
   MultiLegRequest,
   MultiLegResponse,
+  PositionCreate,
+  PositionUpdate,
+  PositionClose,
+  PositionResponse,
+  PortfolioSummaryResponse,
+  StrategyGroupResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8300";
@@ -190,4 +196,79 @@ export async function interpretBacktest(
     }
   }
   onDone();
+}
+
+export function createPosition(data: PositionCreate): Promise<PositionResponse> {
+  return fetcher<PositionResponse>("/api/v1/positions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export function fetchPositions(params?: {
+  status?: string;
+  symbol?: string;
+  strategy?: string;
+}): Promise<PositionResponse[]> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.symbol) qs.set("symbol", params.symbol);
+  if (params?.strategy) qs.set("strategy", params.strategy);
+  const query = qs.toString();
+  return fetcher<PositionResponse[]>(`/api/v1/positions${query ? `?${query}` : ""}`);
+}
+
+export function fetchPosition(id: string): Promise<PositionResponse> {
+  return fetcher<PositionResponse>(`/api/v1/positions/${id}`);
+}
+
+export function updatePosition(
+  id: string,
+  data: PositionUpdate,
+): Promise<PositionResponse> {
+  return fetcher<PositionResponse>(`/api/v1/positions/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export function closePosition(
+  id: string,
+  data: PositionClose,
+): Promise<PositionResponse> {
+  return fetcher<PositionResponse>(`/api/v1/positions/${id}/close`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deletePosition(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/v1/positions/${id}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: /api/v1/positions/${id}`);
+  }
+}
+
+export function fetchPortfolioSummary(): Promise<PortfolioSummaryResponse> {
+  return fetcher<PortfolioSummaryResponse>("/api/v1/portfolio/summary");
+}
+
+export function fetchPortfolioStrategies(): Promise<StrategyGroupResponse[]> {
+  return fetcher<StrategyGroupResponse[]>("/api/v1/portfolio/strategies");
+}
+
+export function fetchExpiringPositions(days = 7): Promise<PositionResponse[]> {
+  return fetcher<PositionResponse[]>(`/api/v1/positions/alerts/expiring?days=${days}`);
+}
+
+export function batchMarkExpired(): Promise<{ marked_expired: number }> {
+  return fetcher<{ marked_expired: number }>("/api/v1/positions/batch/mark-expired", {
+    method: "POST",
+  });
 }

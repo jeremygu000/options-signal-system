@@ -266,3 +266,82 @@ export interface MultiLegResponse {
   pnl_curve: PnLPoint[];
   error: string | null;
 }
+
+// ── Position management types ───────────────────────────────────────
+
+export interface PositionCreate {
+  symbol: string;
+  option_type: "call" | "put";
+  strike: number;
+  expiration: string; // YYYY-MM-DD
+  quantity: number; // positive=long, negative=short
+  entry_price: number;
+  entry_date?: string;
+  entry_commission?: number;
+  strategy_name?: string;
+  tags?: string;
+  notes?: string;
+}
+
+export interface PositionUpdate {
+  notes?: string;
+  tags?: string;
+  strategy_name?: string;
+  entry_price?: number;
+  entry_commission?: number;
+  quantity?: number;
+}
+
+export interface PositionClose {
+  exit_price: number;
+  exit_commission?: number;
+  exit_date?: string;
+}
+
+export interface PositionResponse {
+  id: string;
+  symbol: string;
+  option_type: string;
+  strike: number;
+  expiration: string;
+  quantity: number;
+  entry_price: number;
+  entry_date: string;
+  entry_commission: number;
+  exit_price: number | null;
+  exit_date: string | null;
+  exit_commission: number;
+  status: "open" | "closed" | "expired";
+  delta: number;
+  gamma: number;
+  theta: number;
+  vega: number;
+  rho: number;
+  strategy_name: string | null;
+  tags: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+  unrealized_pnl: number | null;
+  realized_pnl: number | null;
+  total_cost: number | null;
+}
+
+export interface PortfolioSummaryResponse {
+  total_positions: number;
+  open_positions: number;
+  closed_positions: number;
+  expired_positions: number;
+  total_unrealized_pnl: number;
+  total_realized_pnl: number;
+  total_cost: number;
+  greeks: AggregatedGreeks;
+}
+
+export interface StrategyGroupResponse {
+  strategy_name: string;
+  position_count: number;
+  open_count: number;
+  total_realized_pnl: number;
+  positions: PositionResponse[];
+}

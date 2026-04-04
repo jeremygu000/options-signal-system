@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from app.backtester import BacktestConfig, StrategyType, run_backtest, run_multi_strategy_backtest
 from app.config import settings
 from app.data_provider import clear_cache as clear_data_cache, get_daily, get_intraday
+from app.database import close_db, get_session, init_db
 from app.greeks import GreeksResult, calculate_greeks
 from app.iv_analysis import IVAnalysisResult, compute_iv_analysis
 from app.multi_leg import OptionLeg, analyze_multi_leg
@@ -47,11 +48,33 @@ from app.models import (
     OptionsChainSummary,
     OptionsContract,
     PnLPointModel,
+    PortfolioSummaryResponse,
+    PositionClose,
+    PositionCreate,
+    PositionResponse,
+    PositionUpdate,
     Signal,
     SignalLevel,
+    StrategyGroupResponse,
 )
 from app.options_data import clear_chain_cache, get_expirations, get_options_chain, get_options_chain_multi
 from app.options_source import get_options_source
+from app.position_models import Position
+from app.positions import (
+    aggregate_greeks,
+    calc_realized_pnl,
+    calc_total_cost,
+    calc_unrealized_pnl,
+    close_position,
+    create_position,
+    delete_position,
+    get_expiring_positions,
+    get_position,
+    group_by_strategy,
+    list_positions,
+    mark_expired_positions,
+    update_position,
+)
 from app.strategy_engine import StrategyEngine
 from app.utils import now_ny
 
@@ -198,12 +221,14 @@ def _check_rate_limit(client_ip: str) -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+    await init_db()
     logger.info("Signal system API started on port 8300")
     yield
     get_regime_engine.cache_clear()
     get_strategy_engine.cache_clear()
     clear_data_cache()
     clear_chain_cache()
+    await close_db()
     logger.info("Signal system API shutting down")
 
 
@@ -212,6 +237,7 @@ tags_metadata = [
     {"name": "market", "description": "Market regime & signal endpoints"},
     {"name": "data", "description": "OHLCV & indicator data"},
     {"name": "options", "description": "Options chain & backtesting"},
+    {"name": "positions", "description": "Position management & portfolio"},
 ]
 
 app = FastAPI(
@@ -224,7 +250,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -841,3 +867,183 @@ async def interpret_backtest(req: BacktestInterpretRequest) -> StreamingResponse
             yield f'data: {{"error": "{str(exc)[:200]}"}}\n\n'
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ── Position management endpoints ────────────────────────────────────
+
+
+def _position_to_response(pos: Position, current_price: float | None = None) -> PositionResponse:
+    unreal = calc_unrealized_pnl(pos, current_price) if current_price is not None and pos.status == "open" else None
+    real = calc_realized_pnl(pos) if pos.status == "closed" else None
+    cost = calc_total_cost(pos)
+
+    return PositionResponse(
+        id=pos.id,
+        symbol=pos.symbol,
+        option_type=pos.option_type,
+        strike=pos.strike,
+        expiration=pos.expiration,
+        quantity=pos.quantity,
+        entry_price=pos.entry_price,
+        entry_date=pos.entry_date,
+        entry_commission=pos.entry_commission,
+        exit_price=pos.exit_price,
+        exit_date=pos.exit_date,
+        exit_commission=pos.exit_commission,
+        status=pos.status,
+        delta=pos.delta,
+        gamma=pos.gamma,
+        theta=pos.theta,
+        vega=pos.vega,
+        rho=pos.rho,
+        strategy_name=pos.strategy_name,
+        tags=pos.tags,
+        notes=pos.notes,
+        created_at=pos.created_at,
+        updated_at=pos.updated_at,
+        unrealized_pnl=unreal,
+        realized_pnl=real,
+        total_cost=cost,
+    )
+
+
+@app.post("/api/v1/positions", response_model=PositionResponse, tags=["positions"], status_code=201)
+async def create_position_endpoint(req: PositionCreate) -> PositionResponse:
+    if req.quantity == 0:
+        raise HTTPException(status_code=400, detail="quantity cannot be 0")
+    async with get_session() as session:
+        pos = await create_position(
+            session,
+            symbol=req.symbol,
+            option_type=req.option_type,
+            strike=req.strike,
+            expiration=req.expiration,
+            quantity=req.quantity,
+            entry_price=req.entry_price,
+            entry_date=req.entry_date,
+            entry_commission=req.entry_commission,
+            strategy_name=req.strategy_name,
+            tags=req.tags,
+            notes=req.notes,
+        )
+        return _position_to_response(pos)
+
+
+@app.get("/api/v1/positions", response_model=list[PositionResponse], tags=["positions"])
+async def list_positions_endpoint(
+    status: str | None = Query(default=None, pattern=r"^(open|closed|expired)$"),
+    symbol: str | None = Query(default=None),
+    strategy: str | None = Query(default=None),
+) -> list[PositionResponse]:
+    async with get_session() as session:
+        positions = await list_positions(session, status=status, symbol=symbol, strategy_name=strategy)
+        return [_position_to_response(p) for p in positions]
+
+
+@app.get("/api/v1/positions/{position_id}", response_model=PositionResponse, tags=["positions"])
+async def get_position_endpoint(position_id: str) -> PositionResponse:
+    async with get_session() as session:
+        pos = await get_position(session, position_id)
+        if pos is None:
+            raise HTTPException(status_code=404, detail=f"Position {position_id} not found")
+        return _position_to_response(pos)
+
+
+@app.put("/api/v1/positions/{position_id}", response_model=PositionResponse, tags=["positions"])
+async def update_position_endpoint(position_id: str, req: PositionUpdate) -> PositionResponse:
+    async with get_session() as session:
+        updates = {k: v for k, v in req.model_dump().items() if v is not None}
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        pos = await update_position(session, position_id, **updates)
+        if pos is None:
+            raise HTTPException(status_code=404, detail=f"Position {position_id} not found")
+        return _position_to_response(pos)
+
+
+@app.post("/api/v1/positions/{position_id}/close", response_model=PositionResponse, tags=["positions"])
+async def close_position_endpoint(position_id: str, req: PositionClose) -> PositionResponse:
+    async with get_session() as session:
+        try:
+            pos = await close_position(
+                session,
+                position_id,
+                exit_price=req.exit_price,
+                exit_commission=req.exit_commission,
+                exit_date=req.exit_date,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if pos is None:
+            raise HTTPException(status_code=404, detail=f"Position {position_id} not found")
+        return _position_to_response(pos)
+
+
+@app.delete("/api/v1/positions/{position_id}", tags=["positions"], status_code=204)
+async def delete_position_endpoint(position_id: str) -> Response:
+    async with get_session() as session:
+        deleted = await delete_position(session, position_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Position {position_id} not found")
+        return Response(status_code=204)
+
+
+@app.get("/api/v1/portfolio/summary", response_model=PortfolioSummaryResponse, tags=["positions"])
+async def portfolio_summary() -> PortfolioSummaryResponse:
+    async with get_session() as session:
+        all_positions = await list_positions(session)
+
+        open_positions = [p for p in all_positions if p.status == "open"]
+        closed_positions = [p for p in all_positions if p.status == "closed"]
+        expired_positions = [p for p in all_positions if p.status == "expired"]
+
+        total_realized = sum(calc_realized_pnl(p) for p in closed_positions)
+        total_cost = sum(calc_total_cost(p) for p in open_positions)
+        greeks = aggregate_greeks(open_positions)
+
+        return PortfolioSummaryResponse(
+            total_positions=len(all_positions),
+            open_positions=len(open_positions),
+            closed_positions=len(closed_positions),
+            expired_positions=len(expired_positions),
+            total_unrealized_pnl=0.0,
+            total_realized_pnl=total_realized,
+            total_cost=total_cost,
+            greeks=AggregatedGreeksModel(**greeks),
+        )
+
+
+@app.get("/api/v1/portfolio/strategies", response_model=list[StrategyGroupResponse], tags=["positions"])
+async def portfolio_by_strategy() -> list[StrategyGroupResponse]:
+    async with get_session() as session:
+        all_positions = await list_positions(session)
+        groups = group_by_strategy(all_positions)
+
+        result: list[StrategyGroupResponse] = []
+        for name, positions in groups.items():
+            open_count = sum(1 for p in positions if p.status == "open")
+            total_realized = sum(calc_realized_pnl(p) for p in positions if p.status == "closed")
+            result.append(
+                StrategyGroupResponse(
+                    strategy_name=name,
+                    position_count=len(positions),
+                    open_count=open_count,
+                    total_realized_pnl=total_realized,
+                    positions=[_position_to_response(p) for p in positions],
+                )
+            )
+        return result
+
+
+@app.get("/api/v1/positions/alerts/expiring", response_model=list[PositionResponse], tags=["positions"])
+async def expiring_positions(days: int = Query(default=7, ge=1, le=90)) -> list[PositionResponse]:
+    async with get_session() as session:
+        positions = await get_expiring_positions(session, days_ahead=days)
+        return [_position_to_response(p) for p in positions]
+
+
+@app.post("/api/v1/positions/batch/mark-expired", tags=["positions"])
+async def batch_mark_expired() -> dict[str, int]:
+    async with get_session() as session:
+        count = await mark_expired_positions(session)
+        return {"marked_expired": count}
