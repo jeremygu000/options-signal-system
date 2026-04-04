@@ -96,4 +96,4 @@ This starts both the backend (port 8400) and frontend (port 3100).
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under the Apache License 2.0.

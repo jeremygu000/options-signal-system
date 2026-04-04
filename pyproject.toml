@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "规则透明的期权交易信号系统 — 输出清晰信号，不做自动下单"
 readme = "README.md"
 authors = [{ name = "Jeremy Gu" }]
-license = "MIT"
+license = "Apache-2.0"
 requires-python = ">=3.12"
 dependencies = [
     "pandas>=2.2",
