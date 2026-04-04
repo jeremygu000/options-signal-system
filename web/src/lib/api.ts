@@ -38,6 +38,7 @@ import type {
   PortfolioHistoryRequest,
   PortfolioHistoryResponse,
   FundamentalAnalysisResponse,
+  PutCallRatioResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8400";
@@ -511,5 +512,13 @@ export function fetchFundamentalAnalysis(
 ): Promise<FundamentalAnalysisResponse> {
   return fetcher<FundamentalAnalysisResponse>(
     `/api/v1/fundamentals/${encodeURIComponent(symbol)}`,
+  );
+}
+
+export function fetchPutCallRatio(
+  symbol: string,
+): Promise<PutCallRatioResponse> {
+  return fetcher<PutCallRatioResponse>(
+    `/api/v1/options/put-call-ratio/${encodeURIComponent(symbol)}`,
   );
 }

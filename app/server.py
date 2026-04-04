@@ -34,6 +34,7 @@ from app.data_provider import (
 )
 from app.database import close_db, get_session, init_db
 from app.fundamental import FundamentalAnalysisResult, compute_fundamental_analysis
+from app.put_call_ratio import PutCallRatioResult, compute_put_call_ratio
 from app.greeks import GreeksResult, calculate_greeks
 from app.iv_analysis import IVAnalysisResult, compute_iv_analysis
 from app.multi_leg import OptionLeg, analyze_multi_leg
@@ -77,6 +78,8 @@ from app.models import (
     ValuationMetricsModel,
     SymbolMetaResponse,
     PaginatedSymbolResult,
+    PCRStrikePointModel,
+    PCRTermPointModel,
     SignalBacktestRequest,
     SignalBacktestResponse,
     WalkForwardRequest,
@@ -88,6 +91,7 @@ from app.models import (
     ClosePositionRequest as BrokerClosePositionRequest,
     PortfolioHistoryRequest,
     PortfolioHistoryResponse,
+    PutCallRatioResponse,
 )
 from app.options_data import clear_chain_cache, get_expirations, get_options_chain, get_options_chain_multi
 from app.options_source import get_options_source
@@ -861,6 +865,60 @@ async def fundamental_analysis(symbol: str) -> FundamentalAnalysisResponse:
             for u in result.upgrades_downgrades
         ],
         next_earnings_date=result.next_earnings_date,
+        error=result.error,
+    )
+
+
+@app.get("/api/v1/options/put-call-ratio/{symbol}", response_model=PutCallRatioResponse, tags=["options"])
+@app.get("/api/options/put-call-ratio/{symbol}", response_model=PutCallRatioResponse, include_in_schema=False)
+async def put_call_ratio(symbol: str) -> PutCallRatioResponse:
+    upper_symbol = symbol.upper()
+    if upper_symbol not in CORE_SYMBOLS and not has_parquet_data(upper_symbol):
+        raise HTTPException(status_code=400, detail=f"Unknown symbol: {symbol}. No Parquet data found.")
+
+    loop = asyncio.get_event_loop()
+    result: PutCallRatioResult = await loop.run_in_executor(None, compute_put_call_ratio, upper_symbol)
+
+    return PutCallRatioResponse(
+        symbol=result.symbol,
+        spot_price=result.spot_price,
+        total_call_volume=result.total_call_volume,
+        total_put_volume=result.total_put_volume,
+        total_call_oi=result.total_call_oi,
+        total_put_oi=result.total_put_oi,
+        pcr_volume=result.pcr_volume,
+        pcr_oi=result.pcr_oi,
+        atm_pcr_volume=result.atm_pcr_volume,
+        atm_pcr_oi=result.atm_pcr_oi,
+        signal=result.signal,
+        signal_description=result.signal_description,
+        strike_points=[
+            PCRStrikePointModel(
+                strike=p.strike,
+                call_volume=p.call_volume,
+                put_volume=p.put_volume,
+                call_oi=p.call_oi,
+                put_oi=p.put_oi,
+                pcr_volume=p.pcr_volume,
+                pcr_oi=p.pcr_oi,
+                moneyness=p.moneyness,
+            )
+            for p in result.strike_points
+        ],
+        term_structure=[
+            PCRTermPointModel(
+                expiration=t.expiration,
+                dte_days=t.dte_days,
+                call_volume=t.call_volume,
+                put_volume=t.put_volume,
+                call_oi=t.call_oi,
+                put_oi=t.put_oi,
+                pcr_volume=t.pcr_volume,
+                pcr_oi=t.pcr_oi,
+            )
+            for t in result.term_structure
+        ],
+        expirations_analysed=result.expirations_analysed,
         error=result.error,
     )
 

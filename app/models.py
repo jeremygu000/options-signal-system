@@ -662,3 +662,47 @@ class FundamentalAnalysisResponse(BaseModel):
     upgrades_downgrades: list[UpgradeDowngradeModel] = Field(default_factory=list)
     next_earnings_date: str | None = None
     error: str | None = None
+
+
+# ── Put/Call ratio models ────────────────────────────────────────────
+
+
+class PCRStrikePointModel(BaseModel):
+    strike: float
+    call_volume: int = 0
+    put_volume: int = 0
+    call_oi: int = 0
+    put_oi: int = 0
+    pcr_volume: float = 0.0
+    pcr_oi: float = 0.0
+    moneyness: float = 0.0
+
+
+class PCRTermPointModel(BaseModel):
+    expiration: str
+    dte_days: int
+    call_volume: int = 0
+    put_volume: int = 0
+    call_oi: int = 0
+    put_oi: int = 0
+    pcr_volume: float = 0.0
+    pcr_oi: float = 0.0
+
+
+class PutCallRatioResponse(BaseModel):
+    symbol: str
+    spot_price: float = 0.0
+    total_call_volume: int = 0
+    total_put_volume: int = 0
+    total_call_oi: int = 0
+    total_put_oi: int = 0
+    pcr_volume: float = 0.0
+    pcr_oi: float = 0.0
+    atm_pcr_volume: float = 0.0
+    atm_pcr_oi: float = 0.0
+    signal: str = "neutral"
+    signal_description: str = ""
+    strike_points: list[PCRStrikePointModel] = Field(default_factory=list)
+    term_structure: list[PCRTermPointModel] = Field(default_factory=list)
+    expirations_analysed: int = 0
+    error: str | None = None

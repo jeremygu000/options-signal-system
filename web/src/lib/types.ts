@@ -658,6 +658,49 @@ export interface FundamentalAnalysisResponse {
   error: string | null;
 }
 
+// ── Put/Call ratio types ─────────────────────────────────────────────
+
+export interface PCRStrikePoint {
+  strike: number;
+  call_volume: number;
+  put_volume: number;
+  call_oi: number;
+  put_oi: number;
+  pcr_volume: number;
+  pcr_oi: number;
+  moneyness: number;
+}
+
+export interface PCRTermPoint {
+  expiration: string;
+  dte_days: number;
+  call_volume: number;
+  put_volume: number;
+  call_oi: number;
+  put_oi: number;
+  pcr_volume: number;
+  pcr_oi: number;
+}
+
+export interface PutCallRatioResponse {
+  symbol: string;
+  spot_price: number;
+  total_call_volume: number;
+  total_put_volume: number;
+  total_call_oi: number;
+  total_put_oi: number;
+  pcr_volume: number;
+  pcr_oi: number;
+  atm_pcr_volume: number;
+  atm_pcr_oi: number;
+  signal: string;
+  signal_description: string;
+  strike_points: PCRStrikePoint[];
+  term_structure: PCRTermPoint[];
+  expirations_analysed: number;
+  error: string | null;
+}
+
 // ── WebSocket ──────────────────────────────────────────────────────
 
 export type WSChannel = "signals" | "regime" | "broker" | "health";
