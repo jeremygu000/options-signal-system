@@ -1,5 +1,11 @@
 # Options Signal System
 
+[![CI](https://github.com/jeremygu000/otpions-signal-system/actions/workflows/ci.yml/badge.svg)](https://github.com/jeremygu000/otpions-signal-system/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![mypy: strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy-lang.org/)
+
 Rule-based options trading signal scanner. Evaluates market regime (QQQ + VIX), applies per-symbol directional strategies, and outputs clear, actionable signals with options structure suggestions. **This is a signal system, not an auto-execution system.**
 
 ## Features
