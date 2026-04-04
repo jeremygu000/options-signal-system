@@ -326,7 +326,10 @@ export default function ChartsSection() {
             label={
               <Typography
                 variant="caption"
-                sx={{ fontFamily: "var(--font-geist-mono)", fontSize: "0.7rem" }}
+                sx={{
+                  fontFamily: "var(--font-geist-mono)",
+                  fontSize: "0.7rem",
+                }}
               >
                 SMA / VWAP
               </Typography>

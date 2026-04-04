@@ -20,20 +20,32 @@ import InputLabel from "@mui/material/InputLabel";
 import Autocomplete from "@mui/material/Autocomplete";
 import SectionHeader from "@/components/SectionHeader";
 import { useThemeMode } from "@/components/ThemeProvider";
+import Table from "@mui/material/Table";
+import TableHead from "@mui/material/TableHead";
+import TableBody from "@mui/material/TableBody";
+import TableRow from "@mui/material/TableRow";
+import TableCell from "@mui/material/TableCell";
+import TableSortLabel from "@mui/material/TableSortLabel";
 import {
   fetchSymbols,
   fetchExpirations,
   fetchOptionsChain,
+  fetchOptionsChainDetail,
   runBacktest,
   interpretBacktest,
+  calculateGreeks,
 } from "@/lib/api";
 import type {
   SymbolInfo,
   OptionsChainSummary,
+  OptionsChainDetail,
+  OptionsContract,
   BacktestRequest,
   BacktestResponse,
   BacktestMetrics,
   StrategyType,
+  GreeksRequest,
+  GreeksResponse,
 } from "@/lib/types";
 
 function daysUntil(dateStr: string): number {
@@ -214,7 +226,11 @@ function MetricCard({ label, sublabel, value, color }: MetricCardProps) {
 
 function renderMetrics(metrics: BacktestMetrics) {
   const winColor =
-    metrics.win_rate > 50 ? "#36bb80" : metrics.win_rate < 40 ? "#ff7134" : undefined;
+    metrics.win_rate > 50
+      ? "#36bb80"
+      : metrics.win_rate < 40
+        ? "#ff7134"
+        : undefined;
   const drawdownColor = "#ff7134";
   const sharpeColor = metrics.sharpe_ratio > 1 ? "#36bb80" : undefined;
 
@@ -331,10 +347,16 @@ function ExpirationsBrowser() {
           getOptionLabel={(opt) => opt.symbol}
           renderOption={(props, opt) => (
             <Box component="li" {...props} key={opt.symbol}>
-              <Typography variant="body2" sx={{ fontFamily: "var(--font-geist-mono)", fontWeight: 700 }}>
+              <Typography
+                variant="body2"
+                sx={{ fontFamily: "var(--font-geist-mono)", fontWeight: 700 }}
+              >
                 {opt.symbol}
               </Typography>
-              <Typography variant="caption" sx={{ ml: 1, color: "text.secondary" }}>
+              <Typography
+                variant="caption"
+                sx={{ ml: 1, color: "text.secondary" }}
+              >
                 {opt.daily_rows} rows · {opt.last_date}
               </Typography>
             </Box>
@@ -354,7 +376,12 @@ function ExpirationsBrowser() {
       {loadingExpirations && (
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={`exp-skel-${i}`} variant="rounded" width={120} height={32} />
+            <Skeleton
+              key={`exp-skel-${i}`}
+              variant="rounded"
+              width={120}
+              height={32}
+            />
           ))}
         </Box>
       )}
@@ -365,7 +392,8 @@ function ExpirationsBrowser() {
             variant="body2"
             sx={{ color: "text.secondary", mb: 1.5, fontSize: "0.8rem" }}
           >
-            共 {expirations.length} 个到期日 · {expirations.length} expirations available
+            共 {expirations.length} 个到期日 · {expirations.length} expirations
+            available
           </Typography>
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
             {expirations.map((date) => {
@@ -376,7 +404,9 @@ function ExpirationsBrowser() {
                 <Chip
                   key={date}
                   label={
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
                       <Typography
                         component="span"
                         sx={{
@@ -400,8 +430,8 @@ function ExpirationsBrowser() {
                     bgcolor: isNear
                       ? "rgba(255,113,52,0.12)"
                       : isMid
-                      ? "rgba(253,188,42,0.12)"
-                      : "rgba(59,137,255,0.10)",
+                        ? "rgba(253,188,42,0.12)"
+                        : "rgba(59,137,255,0.10)",
                     color: isNear ? "#ff7134" : isMid ? "#d49a14" : "#3b89ff",
                     border: `1px solid ${isNear ? "rgba(255,113,52,0.3)" : isMid ? "rgba(253,188,42,0.3)" : "rgba(59,137,255,0.2)"}`,
                   }}
@@ -411,35 +441,86 @@ function ExpirationsBrowser() {
           </Box>
           <Box sx={{ mt: 2, display: "flex", gap: 2 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#ff7134" }} />
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>≤14d 近月</Typography>
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  bgcolor: "#ff7134",
+                }}
+              />
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                ≤14d 近月
+              </Typography>
             </Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#fdbc2a" }} />
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>15–45d 中期</Typography>
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  bgcolor: "#fdbc2a",
+                }}
+              />
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                15–45d 中期
+              </Typography>
             </Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#3b89ff" }} />
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>&gt;45d 远月</Typography>
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  bgcolor: "#3b89ff",
+                }}
+              />
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                &gt;45d 远月
+              </Typography>
             </Box>
           </Box>
         </>
       )}
 
-      {!loadingExpirations && !loadingSymbols && expirations.length === 0 && selectedSymbol && !error && (
-        <Alert severity="info">暂无到期日数据 · No expirations available</Alert>
-      )}
+      {!loadingExpirations &&
+        !loadingSymbols &&
+        expirations.length === 0 &&
+        selectedSymbol &&
+        !error && (
+          <Alert severity="info">
+            暂无到期日数据 · No expirations available
+          </Alert>
+        )}
     </Box>
   );
 }
+
+type SortColumn =
+  | "strike"
+  | "bid"
+  | "ask"
+  | "implied_volatility"
+  | "delta"
+  | "gamma"
+  | "theta"
+  | "vega"
+  | "rho"
+  | "volume"
+  | "open_interest";
 
 function OptionsChainSection() {
   const [symbols, setSymbols] = useState<SymbolInfo[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState<SymbolInfo | null>(null);
   const [chain, setChain] = useState<OptionsChainSummary | null>(null);
+  const [detail, setDetail] = useState<OptionsChainDetail | null>(null);
   const [loadingSymbols, setLoadingSymbols] = useState(true);
   const [loadingChain, setLoadingChain] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedExpiration, setSelectedExpiration] = useState<string>("all");
+  const [sortCol, setSortCol] = useState<SortColumn>("strike");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   useEffect(() => {
     fetchSymbols()
@@ -464,9 +545,30 @@ function OptionsChainSection() {
       .finally(() => setLoadingChain(false));
   }, []);
 
+  const loadDetail = useCallback((sym: string, expiration?: string) => {
+    setLoadingDetail(true);
+    setDetail(null);
+    fetchOptionsChainDetail(sym, expiration === "all" ? undefined : expiration)
+      .then((data) => setDetail(data))
+      .catch((e: unknown) =>
+        setError(e instanceof Error ? e.message : "Failed to load detail"),
+      )
+      .finally(() => setLoadingDetail(false));
+  }, []);
+
   useEffect(() => {
-    if (selectedSymbol) loadChain(selectedSymbol.symbol);
-  }, [selectedSymbol, loadChain]);
+    if (selectedSymbol) {
+      setSelectedExpiration("all");
+      loadChain(selectedSymbol.symbol);
+      loadDetail(selectedSymbol.symbol);
+    }
+  }, [selectedSymbol, loadChain, loadDetail]);
+
+  useEffect(() => {
+    if (selectedSymbol) {
+      loadDetail(selectedSymbol.symbol, selectedExpiration);
+    }
+  }, [selectedExpiration, selectedSymbol, loadDetail]);
 
   const callRatio =
     chain && chain.total_contracts > 0
@@ -476,6 +578,54 @@ function OptionsChainSection() {
     chain && chain.total_contracts > 0
       ? (chain.puts_count / chain.total_contracts) * 100
       : 0;
+
+  const handleSort = (col: SortColumn) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  };
+
+  const sortedContracts: OptionsContract[] = detail
+    ? detail.contracts.toSorted((a, b) => {
+        const av = a[sortCol] ?? 0;
+        const bv = b[sortCol] ?? 0;
+        const cmp =
+          (av as number) < (bv as number)
+            ? -1
+            : (av as number) > (bv as number)
+              ? 1
+              : 0;
+        return sortDir === "asc" ? cmp : -cmp;
+      })
+    : [];
+
+  const monoStyle = { fontFamily: "var(--font-geist-mono)" } as const;
+  const cellSx = { ...monoStyle, fontSize: "0.75rem", py: 0.5, px: 1 } as const;
+  const headCellSx = {
+    ...monoStyle,
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    py: 0.75,
+    px: 1,
+    whiteSpace: "nowrap" as const,
+  } as const;
+
+  const cols: { id: SortColumn; label: string }[] = [
+    { id: "strike", label: "Strike" },
+    { id: "bid", label: "Bid" },
+    { id: "ask", label: "Ask" },
+    { id: "implied_volatility", label: "IV" },
+    { id: "delta", label: "Delta" },
+    { id: "gamma", label: "Gamma" },
+    { id: "theta", label: "Theta" },
+    { id: "vega", label: "Vega" },
+    { id: "rho", label: "Rho" },
+    { id: "volume", label: "Volume" },
+    { id: "open_interest", label: "OI" },
+  ];
 
   return (
     <Box component="section" id="chain" sx={{ mb: 6 }}>
@@ -501,10 +651,16 @@ function OptionsChainSection() {
           getOptionLabel={(opt) => opt.symbol}
           renderOption={(props, opt) => (
             <Box component="li" {...props} key={opt.symbol}>
-              <Typography variant="body2" sx={{ fontFamily: "var(--font-geist-mono)", fontWeight: 700 }}>
+              <Typography
+                variant="body2"
+                sx={{ fontFamily: "var(--font-geist-mono)", fontWeight: 700 }}
+              >
                 {opt.symbol}
               </Typography>
-              <Typography variant="caption" sx={{ ml: 1, color: "text.secondary" }}>
+              <Typography
+                variant="caption"
+                sx={{ ml: 1, color: "text.secondary" }}
+              >
                 {opt.daily_rows} rows
               </Typography>
             </Box>
@@ -537,11 +693,19 @@ function OptionsChainSection() {
             <Grid size={{ xs: 6, sm: 3 }}>
               <Card>
                 <CardContent>
-                  <Typography variant="caption" color="text.secondary">总合约数</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Total Contracts</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    总合约数
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    Total Contracts
+                  </Typography>
                   <Typography
                     variant="h5"
-                    sx={{ fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#3b89ff" }}
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      color: "#3b89ff",
+                    }}
                   >
                     {chain.total_contracts.toLocaleString()}
                   </Typography>
@@ -551,11 +715,19 @@ function OptionsChainSection() {
             <Grid size={{ xs: 6, sm: 3 }}>
               <Card>
                 <CardContent>
-                  <Typography variant="caption" color="text.secondary">看涨期权</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Calls</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    看涨期权
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    Calls
+                  </Typography>
                   <Typography
                     variant="h5"
-                    sx={{ fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#36bb80" }}
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      color: "#36bb80",
+                    }}
                   >
                     {chain.calls_count.toLocaleString()}
                   </Typography>
@@ -568,11 +740,19 @@ function OptionsChainSection() {
             <Grid size={{ xs: 6, sm: 3 }}>
               <Card>
                 <CardContent>
-                  <Typography variant="caption" color="text.secondary">看跌期权</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Puts</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    看跌期权
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    Puts
+                  </Typography>
                   <Typography
                     variant="h5"
-                    sx={{ fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#ff7134" }}
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      color: "#ff7134",
+                    }}
                   >
                     {chain.puts_count.toLocaleString()}
                   </Typography>
@@ -585,11 +765,19 @@ function OptionsChainSection() {
             <Grid size={{ xs: 6, sm: 3 }}>
               <Card>
                 <CardContent>
-                  <Typography variant="caption" color="text.secondary">到期日数量</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Expirations</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    到期日数量
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    Expirations
+                  </Typography>
                   <Typography
                     variant="h5"
-                    sx={{ fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#fdbc2a" }}
+                    sx={{
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      color: "#fdbc2a",
+                    }}
                   >
                     {chain.expirations.length}
                   </Typography>
@@ -603,9 +791,29 @@ function OptionsChainSection() {
               <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }}>
                 看涨/看跌比率 · Call/Put Ratio
               </Typography>
-              <Box sx={{ display: "flex", height: 12, borderRadius: 1, overflow: "hidden", mb: 1 }}>
-                <Box sx={{ width: `${callRatio}%`, bgcolor: "#36bb80", transition: "width 0.4s ease" }} />
-                <Box sx={{ width: `${putRatio}%`, bgcolor: "#ff7134", transition: "width 0.4s ease" }} />
+              <Box
+                sx={{
+                  display: "flex",
+                  height: 12,
+                  borderRadius: 1,
+                  overflow: "hidden",
+                  mb: 1,
+                }}
+              >
+                <Box
+                  sx={{
+                    width: `${callRatio}%`,
+                    bgcolor: "#36bb80",
+                    transition: "width 0.4s ease",
+                  }}
+                />
+                <Box
+                  sx={{
+                    width: `${putRatio}%`,
+                    bgcolor: "#ff7134",
+                    transition: "width 0.4s ease",
+                  }}
+                />
               </Box>
               <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                 <Typography variant="caption" sx={{ color: "#36bb80" }}>
@@ -618,40 +826,231 @@ function OptionsChainSection() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent>
+          <Card sx={{ mb: 2 }}>
+            <CardContent sx={{ pb: "12px !important" }}>
               <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }}>
-                可用到期日 · Available Expirations
+                筛选到期日 · Filter by Expiration
               </Typography>
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                <Chip
+                  key="all"
+                  label={
+                    <Typography
+                      component="span"
+                      sx={{
+                        fontFamily: "var(--font-geist-mono)",
+                        fontSize: "0.72rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      All
+                    </Typography>
+                  }
+                  size="small"
+                  onClick={() => setSelectedExpiration("all")}
+                  sx={{
+                    bgcolor:
+                      selectedExpiration === "all"
+                        ? "#3b89ff"
+                        : "action.selected",
+                    color:
+                      selectedExpiration === "all" ? "#fff" : "text.primary",
+                    border: "1px solid",
+                    borderColor:
+                      selectedExpiration === "all" ? "#3b89ff" : "divider",
+                    cursor: "pointer",
+                    "&:hover": { opacity: 0.85 },
+                  }}
+                />
                 {chain.expirations.map((date) => (
                   <Chip
                     key={date}
                     label={
                       <Typography
                         component="span"
-                        sx={{ fontFamily: "var(--font-geist-mono)", fontSize: "0.72rem", fontWeight: 600 }}
+                        sx={{
+                          fontFamily: "var(--font-geist-mono)",
+                          fontSize: "0.72rem",
+                          fontWeight: 600,
+                        }}
                       >
                         {date}
                       </Typography>
                     }
                     size="small"
+                    onClick={() => setSelectedExpiration(date)}
                     sx={{
-                      bgcolor: "action.selected",
+                      bgcolor:
+                        selectedExpiration === date
+                          ? "#3b89ff"
+                          : "action.selected",
+                      color:
+                        selectedExpiration === date ? "#fff" : "text.primary",
                       border: "1px solid",
-                      borderColor: "divider",
+                      borderColor:
+                        selectedExpiration === date ? "#3b89ff" : "divider",
+                      cursor: "pointer",
+                      "&:hover": { opacity: 0.85 },
                     }}
                   />
                 ))}
               </Box>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
+              <Box sx={{ p: 2, pb: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  合约明细 · Contract Details
+                  {selectedExpiration !== "all" && (
+                    <Typography
+                      component="span"
+                      sx={{
+                        ...monoStyle,
+                        fontSize: "0.75rem",
+                        ml: 1,
+                        color: "text.secondary",
+                      }}
+                    >
+                      {selectedExpiration}
+                    </Typography>
+                  )}
+                </Typography>
+              </Box>
+              <Box sx={{ overflowX: "auto" }}>
+                {loadingDetail ? (
+                  <Box sx={{ p: 2 }}>
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <Skeleton
+                        key={`tbl-skel-${i}`}
+                        variant="rectangular"
+                        height={28}
+                        sx={{ mb: 0.5, borderRadius: 0.5 }}
+                      />
+                    ))}
+                  </Box>
+                ) : sortedContracts.length === 0 ? (
+                  <Box sx={{ p: 3 }}>
+                    <Alert severity="info" sx={{ border: "none" }}>
+                      暂无合约数据 · No contract data available
+                    </Alert>
+                  </Box>
+                ) : (
+                  <Table size="small" sx={{ minWidth: 900 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={headCellSx}>Type</TableCell>
+                        {selectedExpiration === "all" && (
+                          <TableCell sx={headCellSx}>Expiration</TableCell>
+                        )}
+                        {cols.map((col) => (
+                          <TableCell key={col.id} align="right" sx={headCellSx}>
+                            <TableSortLabel
+                              active={sortCol === col.id}
+                              direction={sortCol === col.id ? sortDir : "asc"}
+                              onClick={() => handleSort(col.id)}
+                            >
+                              {col.label}
+                            </TableSortLabel>
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {sortedContracts.map((c) => {
+                        const isCall = c.option_type === "c";
+                        const typeColor = isCall ? "#36bb80" : "#ff7134";
+                        return (
+                          <TableRow
+                            key={`${c.expiration}-${c.option_type}-${c.strike}`}
+                            sx={{ "&:hover": { bgcolor: "action.hover" } }}
+                          >
+                            <TableCell
+                              sx={{
+                                ...cellSx,
+                                fontWeight: 700,
+                                color: typeColor,
+                              }}
+                            >
+                              {isCall ? "Call" : "Put"}
+                            </TableCell>
+                            {selectedExpiration === "all" && (
+                              <TableCell
+                                sx={{ ...cellSx, color: "text.secondary" }}
+                              >
+                                {c.expiration}
+                              </TableCell>
+                            )}
+                            <TableCell align="right" sx={cellSx}>
+                              {fmt(c.strike, 2)}
+                            </TableCell>
+                            <TableCell align="right" sx={cellSx}>
+                              {fmt(c.bid, 2)}
+                            </TableCell>
+                            <TableCell align="right" sx={cellSx}>
+                              {fmt(c.ask, 2)}
+                            </TableCell>
+                            <TableCell align="right" sx={cellSx}>
+                              {c.implied_volatility != null
+                                ? `${(c.implied_volatility * 100).toFixed(1)}%`
+                                : "—"}
+                            </TableCell>
+                            <TableCell
+                              align="right"
+                              sx={{
+                                ...cellSx,
+                                color: isCall ? "#36bb80" : "#ff7134",
+                              }}
+                            >
+                              {c.delta != null ? fmt(c.delta, 4) : "—"}
+                            </TableCell>
+                            <TableCell align="right" sx={cellSx}>
+                              {c.gamma != null ? fmt(c.gamma, 4) : "—"}
+                            </TableCell>
+                            <TableCell
+                              align="right"
+                              sx={{ ...cellSx, color: "text.secondary" }}
+                            >
+                              {c.theta != null ? fmt(c.theta, 4) : "—"}
+                            </TableCell>
+                            <TableCell align="right" sx={cellSx}>
+                              {c.vega != null ? fmt(c.vega, 4) : "—"}
+                            </TableCell>
+                            <TableCell align="right" sx={cellSx}>
+                              {c.rho != null ? fmt(c.rho, 4) : "—"}
+                            </TableCell>
+                            <TableCell align="right" sx={cellSx}>
+                              {c.volume != null
+                                ? c.volume.toLocaleString()
+                                : "—"}
+                            </TableCell>
+                            <TableCell align="right" sx={cellSx}>
+                              {c.open_interest != null
+                                ? c.open_interest.toLocaleString()
+                                : "—"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </Box>
+            </CardContent>
+          </Card>
         </>
       )}
 
-      {!loadingChain && !loadingSymbols && !chain && selectedSymbol && !error && (
-        <Alert severity="info">暂无期权链数据 · No options chain data available</Alert>
-      )}
+      {!loadingChain &&
+        !loadingSymbols &&
+        !chain &&
+        selectedSymbol &&
+        !error && (
+          <Alert severity="info">
+            暂无期权链数据 · No options chain data available
+          </Alert>
+        )}
     </Box>
   );
 }
@@ -714,7 +1113,10 @@ function BacktestSimulator() {
       .finally(() => setLoadingSymbols(false));
   }, []);
 
-  function setField<K extends keyof BacktestParams>(key: K, value: BacktestParams[K]) {
+  function setField<K extends keyof BacktestParams>(
+    key: K,
+    value: BacktestParams[K],
+  ) {
     setParams((p) => ({ ...p, [key]: value }));
   }
 
@@ -738,7 +1140,8 @@ function BacktestSimulator() {
       max_positions: params.max_positions,
       commission_per_contract: params.commission_per_contract,
       stop_loss: params.stop_loss !== "" ? Number(params.stop_loss) : null,
-      take_profit: params.take_profit !== "" ? Number(params.take_profit) : null,
+      take_profit:
+        params.take_profit !== "" ? Number(params.take_profit) : null,
       max_expirations: params.max_expirations,
     };
 
@@ -779,7 +1182,10 @@ function BacktestSimulator() {
       },
       (token) => {
         setAiText((prev) => prev + token);
-        aiPanelRef.current?.scrollTo({ top: aiPanelRef.current.scrollHeight, behavior: "smooth" });
+        aiPanelRef.current?.scrollTo({
+          top: aiPanelRef.current.scrollHeight,
+          behavior: "smooth",
+        });
       },
       (err) => {
         setAiError(err);
@@ -789,7 +1195,8 @@ function BacktestSimulator() {
     );
   }
 
-  const metricCards = result && !result.error ? renderMetrics(result.metrics) : [];
+  const metricCards =
+    result && !result.error ? renderMetrics(result.metrics) : [];
 
   return (
     <Box component="section" id="backtest" sx={{ mb: 6 }}>
@@ -827,7 +1234,11 @@ function BacktestSimulator() {
                       <MenuItem key={s.symbol} value={s.symbol}>
                         <Typography
                           component="span"
-                          sx={{ fontFamily: "var(--font-geist-mono)", fontWeight: 700, fontSize: "0.875rem" }}
+                          sx={{
+                            fontFamily: "var(--font-geist-mono)",
+                            fontWeight: 700,
+                            fontSize: "0.875rem",
+                          }}
                         >
                           {s.symbol}
                         </Typography>
@@ -844,7 +1255,9 @@ function BacktestSimulator() {
                 <Select
                   value={params.strategy}
                   label="策略 Strategy"
-                  onChange={(e) => setField("strategy", e.target.value as StrategyType)}
+                  onChange={(e) =>
+                    setField("strategy", e.target.value as StrategyType)
+                  }
                 >
                   {ALL_STRATEGIES.map((s) => (
                     <MenuItem key={s} value={s}>
@@ -858,7 +1271,10 @@ function BacktestSimulator() {
 
           <Divider sx={{ my: 2 }} />
 
-          <Typography variant="body2" sx={{ fontWeight: 700, mb: 2, color: "text.secondary" }}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 700, mb: 2, color: "text.secondary" }}
+          >
             参数设置 · Parameters
           </Typography>
 
@@ -870,7 +1286,9 @@ function BacktestSimulator() {
                 size="small"
                 fullWidth
                 value={params.max_entry_dte}
-                onChange={(e) => setField("max_entry_dte", Number(e.target.value))}
+                onChange={(e) =>
+                  setField("max_entry_dte", Number(e.target.value))
+                }
                 slotProps={{ htmlInput: { min: 1, max: 365 } }}
               />
             </Grid>
@@ -936,7 +1354,9 @@ function BacktestSimulator() {
                 size="small"
                 fullWidth
                 value={params.max_positions}
-                onChange={(e) => setField("max_positions", Number(e.target.value))}
+                onChange={(e) =>
+                  setField("max_positions", Number(e.target.value))
+                }
                 slotProps={{ htmlInput: { min: 1, max: 50 } }}
               />
             </Grid>
@@ -947,7 +1367,9 @@ function BacktestSimulator() {
                 size="small"
                 fullWidth
                 value={params.commission_per_contract}
-                onChange={(e) => setField("commission_per_contract", Number(e.target.value))}
+                onChange={(e) =>
+                  setField("commission_per_contract", Number(e.target.value))
+                }
                 slotProps={{ htmlInput: { min: 0, step: 0.1 } }}
               />
             </Grid>
@@ -982,7 +1404,9 @@ function BacktestSimulator() {
                 size="small"
                 fullWidth
                 value={params.max_expirations}
-                onChange={(e) => setField("max_expirations", Number(e.target.value))}
+                onChange={(e) =>
+                  setField("max_expirations", Number(e.target.value))
+                }
                 slotProps={{ htmlInput: { min: 1, max: 12 } }}
               />
             </Grid>
@@ -994,7 +1418,9 @@ function BacktestSimulator() {
               size="large"
               onClick={handleRun}
               disabled={running || !params.symbol}
-              startIcon={running ? <CircularProgress size={16} color="inherit" /> : null}
+              startIcon={
+                running ? <CircularProgress size={16} color="inherit" /> : null
+              }
               sx={{
                 bgcolor: "#3b89ff",
                 px: 4,
@@ -1019,7 +1445,11 @@ function BacktestSimulator() {
             <Chip
               label={`${result.symbol} · ${STRATEGY_LABELS[result.strategy as StrategyType] ?? result.strategy}`}
               size="small"
-              sx={{ bgcolor: "rgba(59,137,255,0.1)", color: "#3b89ff", border: "1px solid rgba(59,137,255,0.25)" }}
+              sx={{
+                bgcolor: "rgba(59,137,255,0.1)",
+                color: "#3b89ff",
+                border: "1px solid rgba(59,137,255,0.25)",
+              }}
             />
             <Chip
               label={`${result.trade_count} trades`}
@@ -1044,7 +1474,9 @@ function BacktestSimulator() {
               {result.equity_curve.length > 0 ? (
                 <EquityCurveChart data={result.equity_curve} />
               ) : (
-                <Alert severity="info">无权益曲线数据 · No equity curve data</Alert>
+                <Alert severity="info">
+                  无权益曲线数据 · No equity curve data
+                </Alert>
               )}
             </CardContent>
           </Card>
@@ -1054,7 +1486,11 @@ function BacktestSimulator() {
               variant="contained"
               onClick={handleInterpret}
               disabled={aiStreaming}
-              startIcon={aiStreaming ? <CircularProgress size={16} color="inherit" /> : null}
+              startIcon={
+                aiStreaming ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : null
+              }
               sx={{
                 bgcolor: "#7c4dff",
                 px: 3,
@@ -1077,7 +1513,10 @@ function BacktestSimulator() {
             {(aiText || aiStreaming) && (
               <Card sx={{ border: "1px solid rgba(124,77,255,0.25)" }}>
                 <CardContent>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5, color: "#7c4dff" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, mb: 1.5, color: "#7c4dff" }}
+                  >
                     🤖 AI 分析 · AI Analysis
                   </Typography>
                   <Box
@@ -1119,24 +1558,353 @@ function BacktestSimulator() {
   );
 }
 
+function GreeksCalculator() {
+  const [spot, setSpot] = useState(100);
+  const [strike, setStrike] = useState(100);
+  const [dteDays, setDteDays] = useState(30);
+  const [riskFreeRate, setRiskFreeRate] = useState(0.05);
+  const [iv, setIv] = useState(0.25);
+  const [optionType, setOptionType] = useState<"call" | "put">("call");
+  const [greeks, setGreeks] = useState<GreeksResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCalculate = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const req: GreeksRequest = {
+      spot,
+      strike,
+      dte_days: dteDays,
+      risk_free_rate: riskFreeRate,
+      iv,
+      option_type: optionType,
+    };
+    try {
+      const res = await calculateGreeks(req);
+      setGreeks(res);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Calculation failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [spot, strike, dteDays, riskFreeRate, iv, optionType]);
+
+  return (
+    <Box component="section" id="greeks" sx={{ mb: 6 }}>
+      <SectionHeader
+        number="04"
+        title="希腊字母计算器"
+        subtitle="Greeks Calculator"
+      />
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="body2" sx={{ fontWeight: 700, mb: 2 }}>
+            参数输入 · Input Parameters
+          </Typography>
+
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+              <TextField
+                label="标的价格 Spot"
+                type="number"
+                size="small"
+                fullWidth
+                value={spot}
+                onChange={(e) => setSpot(Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0.01, step: 1 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+              <TextField
+                label="行权价 Strike"
+                type="number"
+                size="small"
+                fullWidth
+                value={strike}
+                onChange={(e) => setStrike(Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0.01, step: 1 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+              <TextField
+                label="距到期天数 DTE"
+                type="number"
+                size="small"
+                fullWidth
+                value={dteDays}
+                onChange={(e) => setDteDays(Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0, max: 3650, step: 1 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+              <TextField
+                label="无风险利率 Risk-Free"
+                type="number"
+                size="small"
+                fullWidth
+                value={riskFreeRate}
+                onChange={(e) => setRiskFreeRate(Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0, max: 1, step: 0.01 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+              <TextField
+                label="隐含波动率 IV"
+                type="number"
+                size="small"
+                fullWidth
+                value={iv}
+                onChange={(e) => setIv(Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0.01, max: 5, step: 0.01 } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>期权类型 Type</InputLabel>
+                <Select
+                  value={optionType}
+                  label="期权类型 Type"
+                  onChange={(e) =>
+                    setOptionType(e.target.value as "call" | "put")
+                  }
+                >
+                  <MenuItem value="call">Call 看涨</MenuItem>
+                  <MenuItem value="put">Put 看跌</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+
+          <Box sx={{ mt: 3 }}>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={handleCalculate}
+              disabled={loading}
+              startIcon={
+                loading ? <CircularProgress size={16} color="inherit" /> : null
+              }
+              sx={{
+                bgcolor: "#36bb80",
+                px: 4,
+                py: 1.2,
+                fontWeight: 700,
+                fontSize: "0.9rem",
+                "&:hover": { bgcolor: "#2a9a68" },
+              }}
+            >
+              {loading ? "计算中..." : "计算 Calculate"}
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+
+      {greeks && (
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+            <Card sx={{ height: "100%" }}>
+              <CardContent sx={{ pb: "16px !important" }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                >
+                  Price
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                >
+                  期权价格
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontFamily: "var(--font-geist-mono)",
+                    fontWeight: 700,
+                    fontSize: "1.25rem",
+                    color: "#3b89ff",
+                  }}
+                >
+                  {fmt(greeks.price, 2)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+            <Card sx={{ height: "100%" }}>
+              <CardContent sx={{ pb: "16px !important" }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                >
+                  Delta
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                >
+                  Delta
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontFamily: "var(--font-geist-mono)",
+                    fontWeight: 700,
+                    fontSize: "1.25rem",
+                    color: greeks.delta >= 0 ? "#36bb80" : "#ff7134",
+                  }}
+                >
+                  {fmt(greeks.delta, 4)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+            <Card sx={{ height: "100%" }}>
+              <CardContent sx={{ pb: "16px !important" }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                >
+                  Gamma
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                >
+                  Gamma
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontFamily: "var(--font-geist-mono)",
+                    fontWeight: 700,
+                    fontSize: "1.25rem",
+                    color: "#3b89ff",
+                  }}
+                >
+                  {fmt(greeks.gamma, 4)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+            <Card sx={{ height: "100%" }}>
+              <CardContent sx={{ pb: "16px !important" }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                >
+                  Theta
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                >
+                  Theta
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontFamily: "var(--font-geist-mono)",
+                    fontWeight: 700,
+                    fontSize: "1.25rem",
+                    color: "#ff7134",
+                  }}
+                >
+                  {fmt(greeks.theta, 4)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+            <Card sx={{ height: "100%" }}>
+              <CardContent sx={{ pb: "16px !important" }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                >
+                  Vega
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                >
+                  Vega
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontFamily: "var(--font-geist-mono)",
+                    fontWeight: 700,
+                    fontSize: "1.25rem",
+                    color: "#36bb80",
+                  }}
+                >
+                  {fmt(greeks.vega, 4)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+            <Card sx={{ height: "100%" }}>
+              <CardContent sx={{ pb: "16px !important" }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+                >
+                  Rho
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 700, mb: 0.5, fontSize: "0.8rem" }}
+                >
+                  Rho
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontFamily: "var(--font-geist-mono)",
+                    fontWeight: 700,
+                    fontSize: "1.25rem",
+                  }}
+                >
+                  {fmt(greeks.rho, 4)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+    </Box>
+  );
+}
+
 export default function OptionsPage() {
   return (
     <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, py: 4 }}>
       <Box sx={{ mb: 4 }}>
-        <Typography
-          variant="h5"
-          sx={{ fontWeight: 700, mb: 0.5 }}
-        >
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
           期权工具
         </Typography>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
-          Options Tools — Expirations, Chain, Backtest Simulator
+          Options Tools — Expirations, Chain, Backtest Simulator, Greeks
+          Calculator
         </Typography>
       </Box>
 
       <ExpirationsBrowser />
       <OptionsChainSection />
       <BacktestSimulator />
+      <GreeksCalculator />
     </Box>
   );
 }

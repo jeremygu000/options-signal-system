@@ -55,234 +55,236 @@ function SignalCard({ signal }: { signal: Signal }) {
         onClick={() => router.push(`/symbol/${signal.symbol.toLowerCase()}`)}
         sx={{ height: "100%", display: "flex", alignItems: "stretch" }}
       >
-      <CardContent sx={{ width: "100%" }}>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            mb: 1.5,
-          }}
-        >
-          <Box>
-            <Typography
-              variant="h6"
-              sx={{
-                fontWeight: 700,
-                fontFamily: "var(--font-geist-mono)",
-                fontSize: "1rem",
-              }}
-            >
-              {signal.symbol}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: "text.secondary",
-                fontFamily: "var(--font-geist-mono)",
-                fontSize: "0.65rem",
-              }}
-            >
-              {new Date(signal.timestamp).toLocaleDateString()}
-            </Typography>
-          </Box>
+        <CardContent sx={{ width: "100%" }}>
           <Box
             sx={{
               display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: 0.5,
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              mb: 1.5,
             }}
           >
-            <Chip
-              label={signal.level}
-              color={levelColor}
-              size="small"
-              sx={{ fontWeight: 700 }}
-            />
-            <Tooltip
-              title={
-                <Box>
-                  <Typography
-                    sx={{
-                      fontWeight: 700,
-                      fontSize: "0.75rem",
-                      mb: 0.5,
-                    }}
-                  >
-                    判断依据
-                  </Typography>
-                  {signal.rationale.map((r) => (
-                    <Typography key={r} sx={{ fontSize: "0.7rem", mb: 0.25 }}>
-                      • {r}
-                    </Typography>
-                  ))}
-                </Box>
-              }
-              arrow
-              placement="top"
-            >
-              <Chip
-                label={signal.bias}
-                size="small"
-                sx={{
-                  bgcolor: biasColor(signal.bias),
-                  color: "#fff",
-                  fontWeight: 600,
-                  fontSize: "0.7rem",
-                  cursor: "help",
-                }}
-              />
-            </Tooltip>
-          </Box>
-        </Box>
-
-        <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-          <Grid size={{ xs: 6 }}>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary", display: "block" }}
-            >
-              当前价格
-            </Typography>
-            <Typography
-              sx={{
-                fontWeight: 600,
-                fontFamily: "var(--font-geist-mono)",
-                fontSize: "0.875rem",
-              }}
-            >
-              ${signal.price.toFixed(2)}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary", display: "block" }}
-            >
-              触发价
-            </Typography>
-            <Typography
-              sx={{
-                fontWeight: 600,
-                fontFamily: "var(--font-geist-mono)",
-                fontSize: "0.875rem",
-                color: "primary.main",
-              }}
-            >
-              ${signal.trigger_price.toFixed(2)}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary", display: "block" }}
-            >
-              信号分数
-            </Typography>
-            <Tooltip
-              title={
-                <Box>
-                  <Typography
-                    sx={{
-                      fontWeight: 700,
-                      fontSize: "0.75rem",
-                      mb: 0.5,
-                    }}
-                  >
-                    分数构成
-                  </Typography>
-                  {signal.rationale.map((r) => (
-                    <Typography key={r} sx={{ fontSize: "0.7rem", mb: 0.25 }}>
-                      • {r}
-                    </Typography>
-                  ))}
-                  {signal.action && (
-                    <Typography
-                      sx={{
-                        fontSize: "0.7rem",
-                        mt: 0.5,
-                        fontStyle: "italic",
-                        opacity: 0.85,
-                      }}
-                    >
-                      → {signal.action}
-                    </Typography>
-                  )}
-                </Box>
-              }
-              arrow
-              placement="top"
-            >
+            <Box>
               <Typography
+                variant="h6"
                 sx={{
                   fontWeight: 700,
                   fontFamily: "var(--font-geist-mono)",
-                  fontSize: "0.875rem",
-                  cursor: "help",
-                  display: "inline-block",
-                  borderBottom: "1px dashed",
-                  borderColor: "text.disabled",
+                  fontSize: "1rem",
                 }}
               >
-                {signal.score}
+                {signal.symbol}
               </Typography>
-            </Tooltip>
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary", display: "block" }}
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                  fontFamily: "var(--font-geist-mono)",
+                  fontSize: "0.65rem",
+                }}
+              >
+                {new Date(signal.timestamp).toLocaleDateString()}
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-end",
+                gap: 0.5,
+              }}
             >
-              结构
-            </Typography>
-            <Typography sx={{ fontWeight: 500, fontSize: "0.8rem" }}>
-              {signal.option_structure || "—"}
-            </Typography>
-          </Grid>
-        </Grid>
-
-        {signal.option_hint && (
-          <Box sx={{ mb: 1.5, p: 1, borderRadius: 1, bgcolor: "action.hover" }}>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary", display: "block", mb: 0.25 }}
-            >
-              期权建议
-            </Typography>
-            <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
-              {signal.option_hint}
-            </Typography>
+              <Chip
+                label={signal.level}
+                color={levelColor}
+                size="small"
+                sx={{ fontWeight: 700 }}
+              />
+              <Tooltip
+                title={
+                  <Box>
+                    <Typography
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: "0.75rem",
+                        mb: 0.5,
+                      }}
+                    >
+                      判断依据
+                    </Typography>
+                    {signal.rationale.map((r) => (
+                      <Typography key={r} sx={{ fontSize: "0.7rem", mb: 0.25 }}>
+                        • {r}
+                      </Typography>
+                    ))}
+                  </Box>
+                }
+                arrow
+                placement="top"
+              >
+                <Chip
+                  label={signal.bias}
+                  size="small"
+                  sx={{
+                    bgcolor: biasColor(signal.bias),
+                    color: "#fff",
+                    fontWeight: 600,
+                    fontSize: "0.7rem",
+                    cursor: "help",
+                  }}
+                />
+              </Tooltip>
+            </Box>
           </Box>
-        )}
 
-        <Divider sx={{ mb: 1 }} />
-        <Typography
-          variant="caption"
-          sx={{
-            color: "text.secondary",
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            display: "block",
-            mb: 0.75,
-          }}
-        >
-          逻辑依据
-        </Typography>
-        <Box component="ul" sx={{ m: 0, pl: 2 }}>
-          {signal.rationale.map((r) => (
-            <Typography
-              key={r}
-              component="li"
-              variant="body2"
-              sx={{ fontSize: "0.775rem", mb: 0.25, color: "text.secondary" }}
+          <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+            <Grid size={{ xs: 6 }}>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", display: "block" }}
+              >
+                当前价格
+              </Typography>
+              <Typography
+                sx={{
+                  fontWeight: 600,
+                  fontFamily: "var(--font-geist-mono)",
+                  fontSize: "0.875rem",
+                }}
+              >
+                ${signal.price.toFixed(2)}
+              </Typography>
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", display: "block" }}
+              >
+                触发价
+              </Typography>
+              <Typography
+                sx={{
+                  fontWeight: 600,
+                  fontFamily: "var(--font-geist-mono)",
+                  fontSize: "0.875rem",
+                  color: "primary.main",
+                }}
+              >
+                ${signal.trigger_price.toFixed(2)}
+              </Typography>
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", display: "block" }}
+              >
+                信号分数
+              </Typography>
+              <Tooltip
+                title={
+                  <Box>
+                    <Typography
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: "0.75rem",
+                        mb: 0.5,
+                      }}
+                    >
+                      分数构成
+                    </Typography>
+                    {signal.rationale.map((r) => (
+                      <Typography key={r} sx={{ fontSize: "0.7rem", mb: 0.25 }}>
+                        • {r}
+                      </Typography>
+                    ))}
+                    {signal.action && (
+                      <Typography
+                        sx={{
+                          fontSize: "0.7rem",
+                          mt: 0.5,
+                          fontStyle: "italic",
+                          opacity: 0.85,
+                        }}
+                      >
+                        → {signal.action}
+                      </Typography>
+                    )}
+                  </Box>
+                }
+                arrow
+                placement="top"
+              >
+                <Typography
+                  sx={{
+                    fontWeight: 700,
+                    fontFamily: "var(--font-geist-mono)",
+                    fontSize: "0.875rem",
+                    cursor: "help",
+                    display: "inline-block",
+                    borderBottom: "1px dashed",
+                    borderColor: "text.disabled",
+                  }}
+                >
+                  {signal.score}
+                </Typography>
+              </Tooltip>
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", display: "block" }}
+              >
+                结构
+              </Typography>
+              <Typography sx={{ fontWeight: 500, fontSize: "0.8rem" }}>
+                {signal.option_structure || "—"}
+              </Typography>
+            </Grid>
+          </Grid>
+
+          {signal.option_hint && (
+            <Box
+              sx={{ mb: 1.5, p: 1, borderRadius: 1, bgcolor: "action.hover" }}
             >
-              {r}
-            </Typography>
-          ))}
-        </Box>
-      </CardContent>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", display: "block", mb: 0.25 }}
+              >
+                期权建议
+              </Typography>
+              <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+                {signal.option_hint}
+              </Typography>
+            </Box>
+          )}
+
+          <Divider sx={{ mb: 1 }} />
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              display: "block",
+              mb: 0.75,
+            }}
+          >
+            逻辑依据
+          </Typography>
+          <Box component="ul" sx={{ m: 0, pl: 2 }}>
+            {signal.rationale.map((r) => (
+              <Typography
+                key={r}
+                component="li"
+                variant="body2"
+                sx={{ fontSize: "0.775rem", mb: 0.25, color: "text.secondary" }}
+              >
+                {r}
+              </Typography>
+            ))}
+          </Box>
+        </CardContent>
       </CardActionArea>
     </Card>
   );
@@ -323,8 +325,19 @@ export default function SignalsSection() {
 
   return (
     <Box component="section" id="signals" sx={{ mb: 6 }}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", mb: 0 }}>
-        <SectionHeader number="02" title="交易信号" subtitle="Signal Dashboard" />
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          mb: 0,
+        }}
+      >
+        <SectionHeader
+          number="02"
+          title="交易信号"
+          subtitle="Signal Dashboard"
+        />
         {lastUpdated && (
           <Typography
             variant="caption"

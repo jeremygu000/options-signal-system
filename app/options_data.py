@@ -13,8 +13,11 @@ import logging
 import time
 from datetime import date
 
+import numpy as np
 import pandas as pd
 import yfinance as yf
+
+from app.greeks import bs_price_and_greeks
 
 logger = logging.getLogger(__name__)
 
@@ -165,37 +168,44 @@ def _transform_to_optopsy(
         if df.empty:
             continue
 
+        n = len(df)
+        strike_arr = np.asarray(df["strike"].values, dtype=np.float64)
+        iv_arr = np.asarray(df["impliedVolatility"].fillna(0.20).values, dtype=np.float64)
+        iv_arr = np.clip(iv_arr, 0.01, 5.0)
+
+        exp_dt = pd.Timestamp(expiration)
+        today_dt = pd.Timestamp(today_str)
+        dte_days = max((exp_dt - today_dt).days, 0)
+        T_arr = np.full(n, dte_days / 365.0, dtype=np.float64)
+
+        spot_price = float(strike_arr.mean())
+        if "lastPrice" in df.columns:
+            spot_price = float(np.asarray(df["lastPrice"].values, dtype=np.float64).mean())
+        S_arr = np.full(n, spot_price, dtype=np.float64)
+
+        _price, delta_arr, gamma_arr, theta_arr, vega_arr, rho_arr = bs_price_and_greeks(
+            S_arr, strike_arr, T_arr, 0.05, iv_arr, option_type
+        )
+
         transformed = pd.DataFrame(
             {
                 "underlying_symbol": symbol.upper(),
                 "option_type": option_type,
-                "expiration": pd.Timestamp(expiration),
-                "quote_date": pd.Timestamp(today_str),
-                "strike": df["strike"].values,
+                "expiration": exp_dt,
+                "quote_date": today_dt,
+                "strike": strike_arr,
                 "bid": df["bid"].values,
                 "ask": df["ask"].values,
+                "delta": delta_arr,
+                "gamma": gamma_arr,
+                "theta": theta_arr,
+                "vega": vega_arr,
+                "rho": rho_arr,
                 "volume": df["volume"].fillna(0).astype(int).values,
                 "open_interest": df["openInterest"].fillna(0).astype(int).values,
                 "implied_volatility": df["impliedVolatility"].fillna(0.0).values,
             }
         )
-
-        # Estimate delta from moneyness (crude approximation when Greeks unavailable).
-        # yfinance doesn't provide Greeks directly, so we approximate:
-        #   - ATM calls ≈ 0.50, ATM puts ≈ -0.50
-        #   - Deep ITM calls → 1.0, deep OTM calls → 0.0
-        #   - Deep ITM puts → -1.0, deep OTM puts → 0.0
-        if "inTheMoney" in df.columns:
-            itm = df["inTheMoney"].values
-            if option_type == "c":
-                # Calls: ITM → higher delta, OTM → lower delta
-                transformed["delta"] = [0.65 if m else 0.30 for m in itm]
-            else:
-                # Puts: ITM → more negative delta, OTM → less negative
-                transformed["delta"] = [-0.65 if m else -0.30 for m in itm]
-        else:
-            # Fallback: assume 0.50 / -0.50
-            transformed["delta"] = 0.50 if option_type == "c" else -0.50
 
         frames.append(transformed)
 

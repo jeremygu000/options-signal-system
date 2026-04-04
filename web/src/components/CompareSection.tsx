@@ -127,7 +127,9 @@ export default function CompareSection() {
   const [addInput, setAddInput] = useState("");
 
   useEffect(() => {
-    fetchSymbols().then(setAllSymbols).catch(() => {});
+    fetchSymbols()
+      .then(setAllSymbols)
+      .catch(() => {});
   }, []);
 
   const loadCompare = useCallback((tickers: string[]) => {
@@ -166,7 +168,15 @@ export default function CompareSection() {
         subtitle="Price Comparison (Normalized)"
       />
 
-      <Box sx={{ mb: 2, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+      <Box
+        sx={{
+          mb: 2,
+          display: "flex",
+          gap: 1,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
         {selectedTickers.map((ticker, idx) => (
           <Chip
             key={ticker}

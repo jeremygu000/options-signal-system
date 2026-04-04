@@ -7,8 +7,11 @@ import type {
   PaginatedOHLCV,
   CompareResponse,
   OptionsChainSummary,
+  OptionsChainDetail,
   BacktestRequest,
   BacktestResponse,
+  GreeksRequest,
+  GreeksResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8300";
@@ -81,8 +84,29 @@ export function fetchOptionsChain(
   );
 }
 
+export function fetchOptionsChainDetail(
+  symbol: string,
+  expiration?: string,
+  maxExpirations = 4,
+): Promise<OptionsChainDetail> {
+  const params = new URLSearchParams();
+  params.set("max_expirations", String(maxExpirations));
+  if (expiration) params.set("expiration", expiration);
+  return fetcher<OptionsChainDetail>(
+    `/api/v1/options/chain/${symbol}/detail?${params.toString()}`,
+  );
+}
+
 export function runBacktest(req: BacktestRequest): Promise<BacktestResponse> {
   return fetcher<BacktestResponse>("/api/v1/backtest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
+export function calculateGreeks(req: GreeksRequest): Promise<GreeksResponse> {
+  return fetcher<GreeksResponse>("/api/v1/greeks/calculate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),

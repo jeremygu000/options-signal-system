@@ -159,3 +159,73 @@ class TestMiddleware:
         resp = client.get("/api/v1/health")
         assert "x-request-id" in resp.headers
         assert "x-response-time" in resp.headers
+
+
+def _make_options_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "underlying_symbol": ["USO"] * 4,
+            "option_type": ["c", "c", "p", "p"],
+            "expiration": pd.Timestamp("2025-05-16"),
+            "quote_date": pd.Timestamp("2025-04-04"),
+            "strike": [70.0, 75.0, 70.0, 75.0],
+            "bid": [3.10, 1.20, 0.80, 2.50],
+            "ask": [3.30, 1.40, 1.00, 2.70],
+            "delta": [0.65, 0.40, -0.35, -0.60],
+            "gamma": [0.03, 0.04, 0.03, 0.04],
+            "theta": [-0.05, -0.04, -0.04, -0.05],
+            "vega": [0.12, 0.15, 0.12, 0.15],
+            "rho": [0.08, 0.06, -0.06, -0.08],
+            "volume": [100, 200, 150, 250],
+            "open_interest": [1000, 2000, 1500, 2500],
+            "implied_volatility": [0.30, 0.32, 0.31, 0.33],
+        }
+    )
+
+
+class TestOptionsChainDetail:
+    @patch("app.server.get_options_chain_multi")
+    def test_detail_returns_contracts(self, mock_chain: object, client: TestClient) -> None:
+        mock_chain.return_value = _make_options_df()  # type: ignore[union-attr]
+        resp = client.get("/api/v1/options/chain/USO/detail")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["symbol"] == "USO"
+        assert data["total_contracts"] == 4
+        assert data["calls_count"] == 2
+        assert data["puts_count"] == 2
+        assert len(data["contracts"]) == 4
+        assert data["expirations"] == ["2025-05-16"]
+
+        c = data["contracts"][0]
+        assert c["option_type"] in ("c", "p")
+        assert "strike" in c
+        assert "delta" in c
+        assert "gamma" in c
+        assert "theta" in c
+        assert "vega" in c
+        assert "rho" in c
+
+    @patch("app.server.get_options_chain")
+    def test_detail_with_expiration_filter(self, mock_chain: object, client: TestClient) -> None:
+        mock_chain.return_value = _make_options_df()  # type: ignore[union-attr]
+        resp = client.get("/api/v1/options/chain/USO/detail?expiration=2025-05-16")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["contracts"]) == 4
+
+    @patch("app.server.get_options_chain_multi")
+    def test_detail_empty_chain(self, mock_chain: object, client: TestClient) -> None:
+        mock_chain.return_value = pd.DataFrame()  # type: ignore[union-attr]
+        resp = client.get("/api/v1/options/chain/USO/detail")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["symbol"] == "USO"
+        assert data["total_contracts"] == 0
+        assert data["contracts"] == []
+
+    @patch("app.server.get_options_chain_multi")
+    def test_detail_backward_compat(self, mock_chain: object, client: TestClient) -> None:
+        mock_chain.return_value = _make_options_df()  # type: ignore[union-attr]
+        resp = client.get("/api/options/chain/USO/detail")
+        assert resp.status_code == 200

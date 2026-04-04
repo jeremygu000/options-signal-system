@@ -83,19 +83,23 @@ class TestTransformToOptopsy:
         calls = _make_calls_df()
         result = _transform_to_optopsy("USO", "2025-04-18", calls, pd.DataFrame())
 
-        itm_deltas = result[result.index < 2]["delta"]
-        otm_deltas = result[result.index >= 2]["delta"]
-        assert all(d == 0.65 for d in itm_deltas)
-        assert all(d == 0.30 for d in otm_deltas)
+        deltas = result["delta"].tolist()
+        assert all(0.0 <= d <= 1.0 for d in deltas)
 
     def test_delta_approximation_puts(self) -> None:
         puts = _make_puts_df()
         result = _transform_to_optopsy("USO", "2025-04-18", pd.DataFrame(), puts)
 
-        otm_deltas = result[result.index < 3]["delta"]
-        itm_deltas = result[result.index >= 3]["delta"]
-        assert all(d == -0.30 for d in otm_deltas)
-        assert all(d == -0.65 for d in itm_deltas)
+        deltas = result["delta"].tolist()
+        assert all(-1.0 <= d <= 0.0 for d in deltas)
+
+    def test_greeks_columns_present(self) -> None:
+        calls = _make_calls_df()
+        puts = _make_puts_df()
+        result = _transform_to_optopsy("USO", "2025-04-18", calls, puts)
+
+        for col in ["delta", "gamma", "theta", "vega", "rho"]:
+            assert col in result.columns
 
     def test_empty_input(self) -> None:
         result = _transform_to_optopsy("USO", "2025-04-18", pd.DataFrame(), pd.DataFrame())

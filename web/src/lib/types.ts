@@ -142,3 +142,48 @@ export interface OptionsChainSummary {
   calls_count: number;
   puts_count: number;
 }
+
+export interface OptionsContract {
+  option_type: "c" | "p";
+  expiration: string;
+  strike: number;
+  bid: number;
+  ask: number;
+  volume: number;
+  open_interest: number;
+  implied_volatility: number;
+  delta: number;
+  gamma: number;
+  theta: number;
+  vega: number;
+  rho: number;
+}
+
+export interface OptionsChainDetail {
+  symbol: string;
+  expirations: string[];
+  total_contracts: number;
+  calls_count: number;
+  puts_count: number;
+  contracts: OptionsContract[];
+}
+
+// ── Greeks Calculator types ─────────────────────────────────────────
+
+export interface GreeksRequest {
+  spot: number;
+  strike: number;
+  dte_days: number;
+  risk_free_rate: number;
+  iv: number;
+  option_type: "call" | "put";
+}
+
+export interface GreeksResponse {
+  price: number;
+  delta: number;
+  gamma: number;
+  theta: number;
+  vega: number;
+  rho: number;
+}

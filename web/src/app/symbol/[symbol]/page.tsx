@@ -16,11 +16,7 @@ import LinearProgress from "@mui/material/LinearProgress";
 import Button from "@mui/material/Button";
 import { useThemeMode } from "@/components/ThemeProvider";
 import { fetchScan, fetchIndicators, fetchOHLCV } from "@/lib/api";
-import type {
-  Signal,
-  IndicatorSnapshot,
-  OHLCVBar,
-} from "@/lib/types";
+import type { Signal, IndicatorSnapshot, OHLCVBar } from "@/lib/types";
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -40,9 +36,7 @@ function borderLeftColor(level: string): string {
   return "divider";
 }
 
-function rangeProgressColor(
-  val: number,
-): "error" | "success" | "warning" {
+function rangeProgressColor(val: number): "error" | "success" | "warning" {
   if (val > 0.7) return "error";
   if (val < 0.3) return "success";
   return "warning";
@@ -240,7 +234,9 @@ export default function SymbolDetailPage() {
           setErrorSignal(null);
         })
         .catch((e: unknown) =>
-          setErrorSignal(e instanceof Error ? e.message : "Failed to load signal"),
+          setErrorSignal(
+            e instanceof Error ? e.message : "Failed to load signal",
+          ),
         )
         .finally(() => {
           if (isInitial) setLoadingSignal(false);
@@ -249,41 +245,47 @@ export default function SymbolDetailPage() {
     [symbol],
   );
 
-  const loadIndicators = useCallback((isInitial: boolean) => {
-    if (!symbol) return;
-    if (isInitial) setLoadingIndicators(true);
-    fetchIndicators(symbol)
-      .then((res) => {
-        setIndicators(res);
-        setErrorIndicators(null);
-      })
-      .catch((e: unknown) =>
-        setErrorIndicators(
-          e instanceof Error ? e.message : "Failed to load indicators",
-        ),
-      )
-      .finally(() => {
-        if (isInitial) setLoadingIndicators(false);
-      });
-  }, [symbol]);
+  const loadIndicators = useCallback(
+    (isInitial: boolean) => {
+      if (!symbol) return;
+      if (isInitial) setLoadingIndicators(true);
+      fetchIndicators(symbol)
+        .then((res) => {
+          setIndicators(res);
+          setErrorIndicators(null);
+        })
+        .catch((e: unknown) =>
+          setErrorIndicators(
+            e instanceof Error ? e.message : "Failed to load indicators",
+          ),
+        )
+        .finally(() => {
+          if (isInitial) setLoadingIndicators(false);
+        });
+    },
+    [symbol],
+  );
 
-  const loadChart = useCallback((isInitial: boolean) => {
-    if (!symbol) return;
-    if (isInitial) setLoadingChart(true);
-    fetchOHLCV(symbol, 90)
-      .then((res) => {
-        setChartData(res.data);
-        setErrorChart(null);
-      })
-      .catch((e: unknown) =>
-        setErrorChart(
-          e instanceof Error ? e.message : "Failed to load chart data",
-        ),
-      )
-      .finally(() => {
-        if (isInitial) setLoadingChart(false);
-      });
-  }, [symbol]);
+  const loadChart = useCallback(
+    (isInitial: boolean) => {
+      if (!symbol) return;
+      if (isInitial) setLoadingChart(true);
+      fetchOHLCV(symbol, 90)
+        .then((res) => {
+          setChartData(res.data);
+          setErrorChart(null);
+        })
+        .catch((e: unknown) =>
+          setErrorChart(
+            e instanceof Error ? e.message : "Failed to load chart data",
+          ),
+        )
+        .finally(() => {
+          if (isInitial) setLoadingChart(false);
+        });
+    },
+    [symbol],
+  );
 
   useEffect(() => {
     loadSignal(true);
@@ -401,13 +403,21 @@ export default function SymbolDetailPage() {
                   >
                     信号摘要
                   </Typography>
-                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                  >
                     Signal Summary &middot;{" "}
                     {new Date(signal.timestamp).toLocaleString()}
                   </Typography>
                 </Box>
                 <Box
-                  sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.75 }}
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-end",
+                    gap: 0.75,
+                  }}
                 >
                   <Chip
                     label={signal.level}
@@ -550,7 +560,11 @@ export default function SymbolDetailPage() {
                     key={r}
                     component="li"
                     variant="body2"
-                    sx={{ fontSize: "0.8rem", mb: 0.4, color: "text.secondary" }}
+                    sx={{
+                      fontSize: "0.8rem",
+                      mb: 0.4,
+                      color: "text.secondary",
+                    }}
                   >
                     {r}
                   </Typography>
@@ -592,32 +606,56 @@ export default function SymbolDetailPage() {
                 <IndicatorRow
                   label="SMA5"
                   sub="5-day SMA"
-                  value={indicators.sma5 !== null ? `$${indicators.sma5.toFixed(2)}` : "—"}
+                  value={
+                    indicators.sma5 !== null
+                      ? `$${indicators.sma5.toFixed(2)}`
+                      : "—"
+                  }
                 />
                 <IndicatorRow
                   label="SMA10"
                   sub="10-day SMA"
-                  value={indicators.sma10 !== null ? `$${indicators.sma10.toFixed(2)}` : "—"}
+                  value={
+                    indicators.sma10 !== null
+                      ? `$${indicators.sma10.toFixed(2)}`
+                      : "—"
+                  }
                 />
                 <IndicatorRow
                   label="ATR14"
                   sub="14-day ATR"
-                  value={indicators.atr14 !== null ? `$${indicators.atr14.toFixed(2)}` : "—"}
+                  value={
+                    indicators.atr14 !== null
+                      ? `$${indicators.atr14.toFixed(2)}`
+                      : "—"
+                  }
                 />
                 <IndicatorRow
                   label="VWAP"
                   sub="Intraday VWAP"
-                  value={indicators.vwap !== null ? `$${indicators.vwap.toFixed(2)}` : "—"}
+                  value={
+                    indicators.vwap !== null
+                      ? `$${indicators.vwap.toFixed(2)}`
+                      : "—"
+                  }
                 />
                 <IndicatorRow
                   label="前高"
                   sub="prev_high"
-                  value={indicators.prev_high !== null ? `$${indicators.prev_high.toFixed(2)}` : "—"}
+                  value={
+                    indicators.prev_high !== null
+                      ? `$${indicators.prev_high.toFixed(2)}`
+                      : "—"
+                  }
                 />
                 <IndicatorRow
                   label="前低"
                   sub="prev_low"
-                  value={indicators.prev_low !== null ? `$${indicators.prev_low.toFixed(2)}` : "—"}
+                  value={
+                    indicators.prev_low !== null
+                      ? `$${indicators.prev_low.toFixed(2)}`
+                      : "—"
+                  }
                 />
                 <IndicatorRow
                   label="20日高"
@@ -659,7 +697,11 @@ export default function SymbolDetailPage() {
                     </Typography>
                     <Typography
                       variant="caption"
-                      sx={{ ml: 1, color: "text.disabled", fontSize: "0.65rem" }}
+                      sx={{
+                        ml: 1,
+                        color: "text.disabled",
+                        fontSize: "0.65rem",
+                      }}
                     >
                       range_position
                     </Typography>

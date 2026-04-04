@@ -113,3 +113,32 @@ class OptionsChainSummary(BaseModel):
     total_contracts: int = 0
     calls_count: int = 0
     puts_count: int = 0
+
+
+class OptionsContract(BaseModel):
+    """Single option contract with pricing and Greeks."""
+
+    option_type: str = Field(description="'c' for call, 'p' for put")
+    expiration: str
+    strike: float
+    bid: float
+    ask: float
+    volume: int = 0
+    open_interest: int = 0
+    implied_volatility: float = 0.0
+    delta: float = 0.0
+    gamma: float = 0.0
+    theta: float = 0.0
+    vega: float = 0.0
+    rho: float = 0.0
+
+
+class OptionsChainDetail(BaseModel):
+    """Full per-contract options chain with Greeks."""
+
+    symbol: str
+    expirations: list[str] = Field(default_factory=list)
+    total_contracts: int = 0
+    calls_count: int = 0
+    puts_count: int = 0
+    contracts: list[OptionsContract] = Field(default_factory=list)

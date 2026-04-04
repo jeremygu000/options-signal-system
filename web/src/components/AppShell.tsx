@@ -3,8 +3,6 @@
 import Box from "@mui/material/Box";
 import Sidebar from "@/components/Sidebar";
 
-const DRAWER_WIDTH = 240;
-
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>

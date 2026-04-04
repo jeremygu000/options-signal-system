@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from app.backtester import BacktestConfig, StrategyType, run_backtest, run_multi_strategy_backtest
 from app.config import settings
 from app.data_provider import clear_cache as clear_data_cache, get_daily, get_intraday
+from app.greeks import GreeksResult, calculate_greeks
 from app.indicators import atr, prev_day_high, prev_day_low, rolling_high, rolling_low, session_vwap, sma
 from app.market_regime import MarketRegimeEngine
 from app.models import (
@@ -33,11 +34,13 @@ from app.models import (
     BacktestRequest,
     BacktestResponse,
     MarketRegimeResult,
+    OptionsChainDetail,
     OptionsChainSummary,
+    OptionsContract,
     Signal,
     SignalLevel,
 )
-from app.options_data import clear_chain_cache, get_expirations, get_options_chain_multi
+from app.options_data import clear_chain_cache, get_expirations, get_options_chain, get_options_chain_multi
 from app.options_source import get_options_source
 from app.strategy_engine import StrategyEngine
 from app.utils import now_ny
@@ -110,6 +113,24 @@ class PaginatedOHLCV(BaseModel):
 class ErrorResponse(BaseModel):
     detail: str
     request_id: str
+
+
+class GreeksRequest(BaseModel):
+    spot: float = Field(gt=0, description="Underlying price")
+    strike: float = Field(gt=0, description="Strike price")
+    dte_days: int = Field(ge=0, le=3650, description="Days to expiration")
+    risk_free_rate: float = Field(default=0.05, ge=0.0, le=1.0)
+    iv: float = Field(gt=0, le=5.0, description="Implied volatility (decimal, e.g. 0.30)")
+    option_type: str = Field(pattern=r"^[cp]$", description="'c' for call, 'p' for put")
+
+
+class GreeksResponse(BaseModel):
+    price: float
+    delta: float
+    gamma: float
+    theta: float
+    vega: float
+    rho: float
 
 
 # ── Dependencies (DI) ───────────────────────────────────────────────
@@ -473,6 +494,88 @@ async def options_chain(
         calls_count=calls_count,
         puts_count=puts_count,
     )
+
+
+@app.get("/api/v1/options/chain/{symbol}/detail", response_model=OptionsChainDetail, tags=["options"])
+@app.get("/api/options/chain/{symbol}/detail", response_model=OptionsChainDetail, include_in_schema=False)
+async def options_chain_detail(
+    symbol: ValidSymbol,
+    expiration: str | None = Query(default=None, description="YYYY-MM-DD expiration date"),
+    max_expirations: int = Query(default=4, ge=1, le=12),
+) -> OptionsChainDetail:
+    loop = asyncio.get_event_loop()
+
+    if expiration:
+        df = await loop.run_in_executor(None, get_options_chain, symbol, expiration)
+    else:
+        df = await loop.run_in_executor(None, get_options_chain_multi, symbol, max_expirations)
+
+    if df.empty:
+        return OptionsChainDetail(symbol=symbol)
+
+    expirations_list: list[str] = []
+    if "expiration" in df.columns:
+        expirations_list = sorted(df["expiration"].dt.strftime("%Y-%m-%d").unique().tolist())
+
+    calls_count = int((df["option_type"] == "c").sum()) if "option_type" in df.columns else 0
+    puts_count = int((df["option_type"] == "p").sum()) if "option_type" in df.columns else 0
+
+    contracts: list[OptionsContract] = []
+    for _, row in df.iterrows():
+        contracts.append(
+            OptionsContract(
+                option_type=row.get("option_type", "c"),
+                expiration=(
+                    row["expiration"].strftime("%Y-%m-%d")
+                    if hasattr(row["expiration"], "strftime")
+                    else str(row["expiration"])
+                ),
+                strike=float(row.get("strike", 0)),
+                bid=float(row.get("bid", 0)),
+                ask=float(row.get("ask", 0)),
+                volume=int(row.get("volume", 0)),
+                open_interest=int(row.get("open_interest", 0)),
+                implied_volatility=float(row.get("implied_volatility", 0)),
+                delta=float(row.get("delta", 0)),
+                gamma=float(row.get("gamma", 0)),
+                theta=float(row.get("theta", 0)),
+                vega=float(row.get("vega", 0)),
+                rho=float(row.get("rho", 0)),
+            )
+        )
+
+    return OptionsChainDetail(
+        symbol=symbol,
+        expirations=expirations_list,
+        total_contracts=len(df),
+        calls_count=calls_count,
+        puts_count=puts_count,
+        contracts=contracts,
+    )
+
+
+@app.post("/api/v1/greeks/calculate", response_model=GreeksResponse, tags=["options"])
+@app.post("/api/greeks/calculate", response_model=GreeksResponse, include_in_schema=False)
+async def greeks_calculate(req: GreeksRequest) -> GreeksResponse:
+    try:
+        result = calculate_greeks(
+            spot=req.spot,
+            strike=req.strike,
+            dte_days=req.dte_days,
+            risk_free_rate=req.risk_free_rate,
+            iv=req.iv,
+            option_type=req.option_type,
+        )
+        return GreeksResponse(
+            price=result.price,
+            delta=result.delta,
+            gamma=result.gamma,
+            theta=result.theta,
+            vega=result.vega,
+            rho=result.rho,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/v1/backtest", response_model=BacktestResponse, tags=["options"])

@@ -118,8 +118,7 @@ export default function Sidebar() {
                 width: 32,
                 height: 32,
                 borderRadius: "8px",
-                background:
-                  "linear-gradient(135deg, #3b89ff 0%, #1a6fe0 100%)",
+                background: "linear-gradient(135deg, #3b89ff 0%, #1a6fe0 100%)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -309,8 +308,14 @@ export default function Sidebar() {
                   boxShadow: `0 0 6px 2px ${statusColor}60`,
                   animation: "pulse-dot 2s ease-in-out infinite",
                   "@keyframes pulse-dot": {
-                    "0%, 100%": { opacity: 1, boxShadow: `0 0 6px 2px ${statusColor}60` },
-                    "50%": { opacity: 0.7, boxShadow: `0 0 2px 1px ${statusColor}30` },
+                    "0%, 100%": {
+                      opacity: 1,
+                      boxShadow: `0 0 6px 2px ${statusColor}60`,
+                    },
+                    "50%": {
+                      opacity: 0.7,
+                      boxShadow: `0 0 2px 1px ${statusColor}30`,
+                    },
                   },
                 }),
                 ...(apiStatus === "checking" && {
@@ -340,7 +345,10 @@ export default function Sidebar() {
                   sx={{
                     color: "rgba(255,255,255,0.4)",
                     p: 0.25,
-                    "&:hover": { color: "#3b89ff", bgcolor: "rgba(255,255,255,0.06)" },
+                    "&:hover": {
+                      color: "#3b89ff",
+                      bgcolor: "rgba(255,255,255,0.06)",
+                    },
                   }}
                   aria-label="Retry health check"
                 >
@@ -416,9 +424,7 @@ export default function Sidebar() {
                 <Typography
                   sx={{
                     fontSize: "0.55rem",
-                    color: ok
-                      ? "rgba(54,187,128,0.9)"
-                      : "rgba(255,113,52,0.9)",
+                    color: ok ? "rgba(54,187,128,0.9)" : "rgba(255,113,52,0.9)",
                     fontFamily: "var(--font-geist-mono)",
                     textTransform: "uppercase",
                   }}

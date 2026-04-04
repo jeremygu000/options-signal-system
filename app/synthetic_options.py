@@ -15,7 +15,8 @@ import math
 
 import numpy as np
 import pandas as pd
-from scipy.stats import norm  # type: ignore[import-untyped]
+
+from app.greeks import bs_price_and_greeks
 
 logger = logging.getLogger(__name__)
 
@@ -45,89 +46,6 @@ TRADING_DAYS_PER_YEAR: float = 252.0
 # IV clamp bounds
 IV_MIN: float = 0.10
 IV_MAX: float = 1.50
-
-# Small epsilon to avoid log(0) or division by zero in BS
-_EPS: float = 1e-8
-
-
-# ── Black-Scholes core (vectorised) ──────────────────────────────────
-
-
-def _bs_price_and_greeks(
-    S: np.ndarray,
-    K: np.ndarray,
-    T: np.ndarray,
-    r: float,
-    sigma: np.ndarray,
-    option_type: str,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Compute Black-Scholes price + Greeks for a vector of options.
-
-    All inputs must be 1-D arrays of the same length.
-
-    Args:
-        S:           Underlying price (per option row).
-        K:           Strike price.
-        T:           Time to expiration in years (DTE / 365). Must be > 0.
-        r:           Risk-free rate (scalar).
-        sigma:       Implied volatility (per option row).
-        option_type: "c" for call, "p" for put.
-
-    Returns:
-        Tuple of (price, delta, gamma, theta, vega) as numpy arrays.
-        Rows where T <= 0 are set to intrinsic value / zero Greeks.
-    """
-    valid = T > _EPS
-    price = np.zeros_like(S)
-    delta = np.zeros_like(S)
-    gamma = np.zeros_like(S)
-    theta = np.zeros_like(S)
-    vega = np.zeros_like(S)
-
-    S_v = S[valid]
-    K_v = K[valid]
-    T_v = T[valid]
-    sigma_v = sigma[valid]
-
-    sqrt_T = np.sqrt(T_v)
-    sigma_sqrt_T = sigma_v * sqrt_T
-
-    d1 = (np.log(S_v / K_v + _EPS) + (r + 0.5 * sigma_v**2) * T_v) / (sigma_sqrt_T + _EPS)
-    d2 = d1 - sigma_sqrt_T
-
-    nd1 = norm.cdf(d1)
-    nd2 = norm.cdf(d2)
-    nd1_neg = norm.cdf(-d1)
-    nd2_neg = norm.cdf(-d2)
-    pdf_d1 = norm.pdf(d1)
-
-    disc = np.exp(-r * T_v)
-
-    if option_type == "c":
-        price[valid] = S_v * nd1 - K_v * disc * nd2
-        delta[valid] = nd1
-    else:
-        price[valid] = K_v * disc * nd2_neg - S_v * nd1_neg
-        delta[valid] = nd1 - 1.0  # negative for puts
-
-    gamma[valid] = pdf_d1 / (S_v * sigma_sqrt_T + _EPS)
-    vega[valid] = S_v * pdf_d1 * sqrt_T / 100.0  # per 1% move in vol
-    theta_annual = -(S_v * pdf_d1 * sigma_v) / (2.0 * sqrt_T + _EPS) - r * K_v * disc
-    if option_type == "c":
-        theta[valid] = theta_annual / 365.0
-    else:
-        theta[valid] = (theta_annual + r * K_v * disc) / 365.0
-
-    # Intrinsic value for expired/zero-time options
-    expired = ~valid
-    if option_type == "c":
-        price[expired] = np.maximum(S[expired] - K[expired], 0.0)
-        delta[expired] = (S[expired] > K[expired]).astype(float)
-    else:
-        price[expired] = np.maximum(K[expired] - S[expired], 0.0)
-        delta[expired] = -((K[expired] > S[expired]).astype(float))
-
-    return price, delta, gamma, theta, vega
 
 
 # ── Strike grid helper ────────────────────────────────────────────────
@@ -246,7 +164,7 @@ def generate_synthetic_chain(
             sigma_arr = np.full(n, sigma_date)
 
             for opt_type in ("c", "p"):
-                mid, delta_arr, gamma_arr, theta_arr, vega_arr = _bs_price_and_greeks(
+                mid, delta_arr, gamma_arr, theta_arr, vega_arr, _rho_arr = bs_price_and_greeks(
                     S_arr, strikes, T_arr, risk_free_rate, sigma_arr, opt_type
                 )
 
