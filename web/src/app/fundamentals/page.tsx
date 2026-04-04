@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -16,9 +16,12 @@ import TableHead from "@mui/material/TableHead";
 import TableBody from "@mui/material/TableBody";
 import TableRow from "@mui/material/TableRow";
 import TableCell from "@mui/material/TableCell";
+import Autocomplete from "@mui/material/Autocomplete";
+import CircularProgress from "@mui/material/CircularProgress";
 import SectionHeader from "@/components/SectionHeader";
 import { useThemeMode } from "@/components/ThemeProvider";
-import { fetchFundamentalAnalysis } from "@/lib/api";
+import { fetchFundamentalAnalysis, searchSymbols } from "@/lib/api";
+import type { SymbolMeta } from "@/lib/types";
 import type {
   FundamentalAnalysisResponse,
   ValuationMetrics,
@@ -959,6 +962,39 @@ export default function FundamentalsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [options, setOptions] = useState<SymbolMeta[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleInputChange = useCallback(
+    (_event: React.SyntheticEvent, value: string) => {
+      const upper = value.toUpperCase();
+      setSymbolInput(upper);
+
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+
+      if (!upper.trim()) {
+        setOptions([]);
+        return;
+      }
+
+      debounceRef.current = setTimeout(() => {
+        setSearchLoading(true);
+        searchSymbols({ query: upper, limit: 20, sort_by: "volume" })
+          .then((res) => setOptions(res.items))
+          .catch(() => setOptions([]))
+          .finally(() => setSearchLoading(false));
+      }, 250);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const cardBg = mode === "dark" ? "#111827" : "#f9fafb";
 
   const handleFetch = useCallback(() => {
@@ -1062,23 +1098,81 @@ export default function FundamentalsPage() {
               flexWrap: "wrap",
             }}
           >
-            <TextField
-              size="small"
-              label="标的 Symbol"
-              value={symbolInput}
-              onChange={(e) => setSymbolInput(e.target.value.toUpperCase())}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleFetch();
+            <Autocomplete
+              freeSolo
+              options={options}
+              getOptionLabel={(opt) =>
+                typeof opt === "string" ? opt : opt.symbol
+              }
+              inputValue={symbolInput}
+              onInputChange={handleInputChange}
+              onChange={(_event, value) => {
+                if (value && typeof value !== "string") {
+                  setSymbolInput(value.symbol);
+                }
               }}
-              sx={{ width: 160 }}
-              slotProps={{
-                htmlInput: {
-                  style: {
-                    fontFamily: "var(--font-geist-mono)",
-                    fontWeight: 700,
-                  },
-                },
+              loading={searchLoading}
+              filterOptions={(x) => x}
+              renderOption={(props, opt) => {
+                const meta = opt as SymbolMeta;
+                return (
+                  <Box component="li" {...props} key={meta.symbol}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily: "var(--font-geist-mono)",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {meta.symbol}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ ml: 1, color: "text.secondary" }}
+                    >
+                      ${meta.last_close.toFixed(2)} ·{" "}
+                      {meta.avg_volume >= 1e6
+                        ? `${(meta.avg_volume / 1e6).toFixed(1)}M vol`
+                        : `${(meta.avg_volume / 1e3).toFixed(0)}K vol`}
+                    </Typography>
+                  </Box>
+                );
               }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  size="small"
+                  label="标的 Symbol"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleFetch();
+                    }
+                  }}
+                  sx={{ width: 280 }}
+                  slotProps={{
+                    htmlInput: {
+                      ...params.inputProps,
+                      style: {
+                        fontFamily: "var(--font-geist-mono)",
+                        fontWeight: 700,
+                      },
+                    },
+                    input: {
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {searchLoading ? (
+                            <CircularProgress color="inherit" size={18} />
+                          ) : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    },
+                  }}
+                />
+              )}
+              sx={{ flex: "0 0 auto" }}
             />
             <Button
               variant="contained"
@@ -1110,7 +1204,10 @@ export default function FundamentalsPage() {
             color: "text.secondary",
           }}
         >
-          <Typography variant="body1">
+          <Typography
+            variant="body1"
+            sx={{ fontFamily: "var(--font-geist-mono)" }}
+          >
             输入标的代码并点击查询 · Enter a symbol and click 查询
           </Typography>
         </Box>
