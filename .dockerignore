@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+.mypy_cache/
+.pytest_cache/
+
+# Node
+web/node_modules/
+web/.next/
+
+# Environment / secrets
+.env
+.env.local
+
+# IDE
+.opencode/
+.idea/
+.vscode/
+*.swp
+.playwright-mcp/
+
+# Git
+.git/
+.gitignore
+
+# Docs / non-runtime
+docs/
+*.md
+LICENSE
