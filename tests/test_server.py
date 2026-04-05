@@ -134,8 +134,9 @@ class TestOHLCV:
 
 
 class TestCompare:
+    @patch("app.server.has_parquet_data", return_value=True)
     @patch("app.server.get_daily")
-    def test_compare_basic(self, mock_daily: object, client: TestClient) -> None:
+    def test_compare_basic(self, mock_daily: object, _mock_parquet: object, client: TestClient) -> None:
         mock_daily.return_value = _make_daily()  # type: ignore[union-attr]
         resp = client.get("/api/v1/compare?tickers=QQQ,USO")
         assert resp.status_code == 200
@@ -185,8 +186,9 @@ def _make_options_df() -> pd.DataFrame:
 
 
 class TestOptionsChainDetail:
+    @patch("app.server.has_parquet_data", return_value=True)
     @patch("app.server.get_options_chain_multi")
-    def test_detail_returns_contracts(self, mock_chain: object, client: TestClient) -> None:
+    def test_detail_returns_contracts(self, mock_chain: object, _mock_parquet: object, client: TestClient) -> None:
         mock_chain.return_value = _make_options_df()  # type: ignore[union-attr]
         resp = client.get("/api/v1/options/chain/USO/detail")
         assert resp.status_code == 200
@@ -207,16 +209,18 @@ class TestOptionsChainDetail:
         assert "vega" in c
         assert "rho" in c
 
+    @patch("app.server.has_parquet_data", return_value=True)
     @patch("app.server.get_options_chain")
-    def test_detail_with_expiration_filter(self, mock_chain: object, client: TestClient) -> None:
+    def test_detail_with_expiration_filter(self, mock_chain: object, _mock_parquet: object, client: TestClient) -> None:
         mock_chain.return_value = _make_options_df()  # type: ignore[union-attr]
         resp = client.get("/api/v1/options/chain/USO/detail?expiration=2025-05-16")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["contracts"]) == 4
 
+    @patch("app.server.has_parquet_data", return_value=True)
     @patch("app.server.get_options_chain_multi")
-    def test_detail_empty_chain(self, mock_chain: object, client: TestClient) -> None:
+    def test_detail_empty_chain(self, mock_chain: object, _mock_parquet: object, client: TestClient) -> None:
         mock_chain.return_value = pd.DataFrame()  # type: ignore[union-attr]
         resp = client.get("/api/v1/options/chain/USO/detail")
         assert resp.status_code == 200
@@ -225,8 +229,9 @@ class TestOptionsChainDetail:
         assert data["total_contracts"] == 0
         assert data["contracts"] == []
 
+    @patch("app.server.has_parquet_data", return_value=True)
     @patch("app.server.get_options_chain_multi")
-    def test_detail_backward_compat(self, mock_chain: object, client: TestClient) -> None:
+    def test_detail_backward_compat(self, mock_chain: object, _mock_parquet: object, client: TestClient) -> None:
         mock_chain.return_value = _make_options_df()  # type: ignore[union-attr]
         resp = client.get("/api/options/chain/USO/detail")
         assert resp.status_code == 200

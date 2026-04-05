@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.broker import get_broker
 from app.security import RateLimiter, rate_limiter
 from app.server import app
 
@@ -100,8 +101,12 @@ class TestApiKeyAuth:
         mock_settings.api_keys = [VALID_KEY]  # type: ignore[attr-defined]
         mock_settings.rate_limit_per_minute = 60  # type: ignore[attr-defined]
         mock_settings.rate_limit_per_key_per_minute = 120  # type: ignore[attr-defined]
-        r = client.get("/api/v1/broker/account")
-        assert r.status_code == 401
+        app.dependency_overrides[get_broker] = lambda: MagicMock()
+        try:
+            r = client.get("/api/v1/broker/account")
+            assert r.status_code == 401
+        finally:
+            app.dependency_overrides.pop(get_broker, None)
 
     @patch("app.security.settings")
     def test_ml_train_protected(self, mock_settings: object, client: TestClient) -> None:
