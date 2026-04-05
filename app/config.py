@@ -74,6 +74,16 @@ class Settings(BaseSettings):
     backtest_capital: float = Field(default=100_000.0, description="Default starting capital")
     backtest_commission: float = Field(default=0.65, description="Commission per contract")
 
+    # ── Market Data API (yahoo-finance-data local server) ───────────
+    market_data_api_url: str = Field(
+        default="http://localhost:8100",
+        description="Base URL for yahoo-finance-data local API (fundamental data)",
+    )
+    market_data_api_timeout: float = Field(
+        default=2.0,
+        description="Timeout in seconds for local market data API calls",
+    )
+
     # ── AI / Ollama ──────────────────────────────────────────────────
     ollama_base_url: str = Field(default="http://localhost:11434", description="Ollama API base URL")
     ollama_model: str = Field(default="qwen3:32b", description="Ollama model name for AI interpretation")

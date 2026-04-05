@@ -13,9 +13,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
+import httpx
 import pandas as pd
 import yfinance as yf
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -141,14 +145,164 @@ class FundamentalAnalysisResult:
 def compute_fundamental_analysis(symbol: str) -> FundamentalAnalysisResult:
     """Run full fundamental analysis for a symbol.
 
-    Fetches fundamental data from yfinance including:
-    - Valuation metrics (P/E, EPS, market cap, book value)
-    - Analyst consensus (recommendations, price targets)
-    - Earnings surprises (recent 4 quarters)
-    - Upgrades/downgrades (recent 10)
-    - Short interest (ratio, % of float)
-    - Income highlights (margins, growth)
+    Hybrid strategy:
+    1. Try local yahoo-finance-data API first (reads cached Parquet files, fast).
+    2. On connection failure or empty response, fall back to live yfinance calls.
     """
+    local_result = _fetch_from_local_api(symbol)
+    if local_result is not None:
+        return local_result
+
+    logger.info("%s: Local API unavailable, falling back to yfinance", symbol)
+    return _fetch_from_yfinance(symbol)
+
+
+def _fetch_from_local_api(symbol: str) -> FundamentalAnalysisResult | None:
+    """Try fetching fundamental data from the local yahoo-finance-data API.
+
+    Returns None if the API is unreachable or returns no data.
+    """
+    base = settings.market_data_api_url.rstrip("/")
+    timeout = settings.market_data_api_timeout
+
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            fund_resp = client.get(
+                f"{base}/api/v1/fundamentals/{symbol}",
+                params={"source": "local"},
+            )
+            if fund_resp.status_code != 200:
+                return None
+            fund: dict[str, Any] = fund_resp.json()
+
+            rec_resp = client.get(f"{base}/api/v1/fundamentals/{symbol}/recommendations")
+            rec_data: dict[str, Any] = rec_resp.json() if rec_resp.status_code == 200 else {}
+
+            earn_resp = client.get(f"{base}/api/v1/fundamentals/{symbol}/earnings")
+            earn_data: dict[str, Any] = earn_resp.json() if earn_resp.status_code == 200 else {}
+
+            upg_resp = client.get(f"{base}/api/v1/fundamentals/{symbol}/upgrades")
+            upg_data: dict[str, Any] = upg_resp.json() if upg_resp.status_code == 200 else {}
+
+    except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPError):
+        return None
+
+    spot = _nf(fund, "regular_market_price") or _nf(fund, "current_price")
+    if spot == 0.0:
+        return None
+
+    rec_items: list[dict[str, Any]] = rec_data.get("items", [])
+    latest_rec = rec_items[-1] if rec_items else {}
+    strong_buy = int(latest_rec.get("strong_buy") or 0)
+    buy = int(latest_rec.get("buy") or 0)
+    hold = int(latest_rec.get("hold") or 0)
+    sell = int(latest_rec.get("sell") or 0)
+    strong_sell = int(latest_rec.get("strong_sell") or 0)
+    total_analysts = strong_buy + buy + hold + sell + strong_sell
+
+    earn_items: list[dict[str, Any]] = earn_data.get("items", [])
+    surprises: list[EarningsSurprise] = []
+    for e in earn_items:
+        reported = e.get("reported_eps")
+        if reported is None:
+            continue
+        surprises.append(
+            EarningsSurprise(
+                date=str(e.get("date", "")),
+                eps_estimate=float(e.get("eps_estimate") or 0.0),
+                eps_actual=float(reported),
+                surprise_pct=float(e.get("surprise_pct") or 0.0),
+            )
+        )
+        if len(surprises) >= 4:
+            break
+
+    next_earnings: str | None = None
+    now_str = datetime.now().strftime("%Y-%m-%d")
+    for e in earn_items:
+        d = str(e.get("date", ""))
+        if d >= now_str and e.get("reported_eps") is None:
+            next_earnings = d
+            break
+
+    upg_items: list[dict[str, Any]] = upg_data.get("items", [])
+    upgrades: list[UpgradeDowngrade] = [
+        UpgradeDowngrade(
+            date=str(u.get("date", "")),
+            firm=str(u.get("firm") or ""),
+            to_grade=str(u.get("to_grade") or ""),
+            from_grade=str(u.get("from_grade") or ""),
+            action=str(u.get("action") or ""),
+        )
+        for u in upg_items[:10]
+    ]
+
+    return FundamentalAnalysisResult(
+        symbol=symbol,
+        spot_price=spot,
+        currency=str(fund.get("currency") or "USD"),
+        valuation=ValuationMetrics(
+            market_cap=_nf(fund, "market_cap"),
+            trailing_pe=_nf(fund, "trailing_pe"),
+            forward_pe=_nf(fund, "forward_pe"),
+            trailing_eps=_nf(fund, "trailing_eps"),
+            forward_eps=_nf(fund, "forward_eps"),
+            price_to_book=_nf(fund, "price_to_book"),
+            price_to_sales=_nf(fund, "price_to_sales_trailing_12_months"),
+            peg_ratio=_nf(fund, "peg_ratio"),
+            enterprise_value=_nf(fund, "enterprise_value"),
+            ev_to_ebitda=_nf(fund, "enterprise_to_ebitda"),
+            dividend_yield=_nf(fund, "dividend_yield"),
+            beta=_nf(fund, "beta"),
+        ),
+        analyst_rating=AnalystRating(
+            recommendation_key=str(fund.get("recommendation_key") or ""),
+            recommendation_mean=_nf(fund, "recommendation_mean"),
+            strong_buy=strong_buy,
+            buy=buy,
+            hold=hold,
+            sell=sell,
+            strong_sell=strong_sell,
+            number_of_analysts=total_analysts,
+        ),
+        price_target=PriceTarget(
+            current=_nf(fund, "current_price"),
+            low=_nf(fund, "target_low_price"),
+            high=_nf(fund, "target_high_price"),
+            mean=_nf(fund, "target_mean_price"),
+            median=_nf(fund, "target_median_price"),
+            number_of_analysts=int(_nf(fund, "number_of_analyst_opinions")),
+        ),
+        short_interest=ShortInterest(
+            short_ratio=_nf(fund, "short_ratio"),
+            short_pct_of_float=_nf(fund, "short_percent_of_float"),
+            shares_short=int(_nf(fund, "shares_short")),
+        ),
+        income=IncomeHighlights(
+            revenue=_nf(fund, "total_revenue"),
+            revenue_growth=_nf(fund, "revenue_growth"),
+            gross_margin=_nf(fund, "gross_margins"),
+            operating_margin=_nf(fund, "operating_margins"),
+            profit_margin=_nf(fund, "profit_margins"),
+            earnings_growth=_nf(fund, "earnings_quarterly_growth"),
+        ),
+        earnings_surprises=surprises,
+        upgrades_downgrades=upgrades,
+        next_earnings_date=next_earnings,
+    )
+
+
+def _nf(data: dict[str, Any], key: str, default: float = 0.0) -> float:
+    val = data.get(key)
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+
+def _fetch_from_yfinance(symbol: str) -> FundamentalAnalysisResult:
     result = FundamentalAnalysisResult(symbol=symbol)
 
     try:
