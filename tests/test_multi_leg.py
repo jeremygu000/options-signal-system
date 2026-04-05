@@ -259,63 +259,63 @@ class TestServerEndpoint:
 
         from app.server import app
 
-        client = TestClient(app)
-        payload = {
-            "legs": [
-                {
-                    "option_type": "c",
-                    "action": "buy",
-                    "strike": 95.0,
-                    "expiration": "2025-07-18",
-                    "quantity": 1,
-                    "premium": 7.0,
-                    "iv": 0.25,
-                },
-                {
-                    "option_type": "c",
-                    "action": "sell",
-                    "strike": 105.0,
-                    "expiration": "2025-07-18",
-                    "quantity": 1,
-                    "premium": 3.0,
-                    "iv": 0.25,
-                },
-            ],
-            "spot": 100.0,
-            "dte_days": 30,
-        }
-        resp = client.post("/api/v1/options/multi-leg/analyze", json=payload)
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "net_debit_credit" in data
-        assert "max_profit" in data
-        assert "max_loss" in data
-        assert "breakeven_points" in data
-        assert "greeks" in data
-        assert "pnl_curve" in data
-        assert len(data["pnl_curve"]) > 100
+        with TestClient(app) as client:
+            payload = {
+                "legs": [
+                    {
+                        "option_type": "c",
+                        "action": "buy",
+                        "strike": 95.0,
+                        "expiration": "2025-07-18",
+                        "quantity": 1,
+                        "premium": 7.0,
+                        "iv": 0.25,
+                    },
+                    {
+                        "option_type": "c",
+                        "action": "sell",
+                        "strike": 105.0,
+                        "expiration": "2025-07-18",
+                        "quantity": 1,
+                        "premium": 3.0,
+                        "iv": 0.25,
+                    },
+                ],
+                "spot": 100.0,
+                "dte_days": 30,
+            }
+            resp = client.post("/api/v1/options/multi-leg/analyze", json=payload)
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "net_debit_credit" in data
+            assert "max_profit" in data
+            assert "max_loss" in data
+            assert "breakeven_points" in data
+            assert "greeks" in data
+            assert "pnl_curve" in data
+            assert len(data["pnl_curve"]) > 100
 
     def test_multi_leg_endpoint_validation_error(self) -> None:
         from fastapi.testclient import TestClient
 
         from app.server import app
 
-        client = TestClient(app)
-        payload = {
-            "legs": [
-                {
-                    "option_type": "x",
-                    "action": "buy",
-                    "strike": 100.0,
-                    "expiration": "2025-07-18",
-                    "quantity": 1,
-                    "premium": 5.0,
-                    "iv": 0.25,
-                },
-            ],
-            "spot": 100.0,
-        }
-        resp = client.post("/api/v1/options/multi-leg/analyze", json=payload)
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["error"] is not None
+        with TestClient(app) as client:
+            payload = {
+                "legs": [
+                    {
+                        "option_type": "x",
+                        "action": "buy",
+                        "strike": 100.0,
+                        "expiration": "2025-07-18",
+                        "quantity": 1,
+                        "premium": 5.0,
+                        "iv": 0.25,
+                    },
+                ],
+                "spot": 100.0,
+            }
+            resp = client.post("/api/v1/options/multi-leg/analyze", json=payload)
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["error"] is not None

@@ -14,8 +14,9 @@ from app.symbol_discovery import SymbolMeta, build_metadata_index, clear_discove
 
 
 @pytest.fixture()
-def client() -> TestClient:
-    return TestClient(app)
+def client() -> TestClient:  # type: ignore[misc]
+    with TestClient(app) as c:
+        yield c  # type: ignore[misc]
 
 
 @pytest.fixture()

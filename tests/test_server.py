@@ -40,8 +40,9 @@ def _make_intraday(n: int = 20) -> pd.DataFrame:
 
 
 @pytest.fixture()
-def client() -> TestClient:
-    return TestClient(app)
+def client() -> TestClient:  # type: ignore[misc]
+    with TestClient(app) as c:
+        yield c  # type: ignore[misc]
 
 
 class TestHealth:

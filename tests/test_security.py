@@ -10,8 +10,9 @@ from app.server import app
 
 
 @pytest.fixture()
-def client() -> TestClient:
-    return TestClient(app)
+def client() -> TestClient:  # type: ignore[misc]
+    with TestClient(app) as c:
+        yield c  # type: ignore[misc]
 
 
 @pytest.fixture(autouse=True)

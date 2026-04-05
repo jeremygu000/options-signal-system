@@ -38,8 +38,9 @@ def _make_short_daily(n: int = 30) -> pd.DataFrame:
 
 
 @pytest.fixture()
-def client() -> TestClient:
-    return TestClient(app)
+def client() -> TestClient:  # type: ignore[misc]
+    with TestClient(app) as c:
+        yield c  # type: ignore[misc]
 
 
 # ── Feature Engineering ──────────────────────────────────────────────

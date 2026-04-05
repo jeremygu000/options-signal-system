@@ -100,7 +100,10 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 async def init_db() -> None:
     """Create all tables if they don't exist.
 
-    Safe to call multiple times — (re)creates the engine when needed.
+    Safe to call multiple times.  Re-uses the existing engine/session-factory
+    when possible so that multiple ``TestClient`` lifespans inside the same
+    pytest process share one connection pool (avoids stale-engine / missing-
+    table bugs on Linux CI with file-backed SQLite).
     """
     global _engine, _session_factory
 
@@ -110,15 +113,16 @@ async def init_db() -> None:
     import app.position_models  # noqa: F401
     import app.watchlist_models  # noqa: F401
 
-    _engine = _create_engine()
-    _session_factory = async_sessionmaker(
-        _engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
+    if _engine is None:
+        _engine = _create_engine()
+    if _session_factory is None:
+        _session_factory = async_sessionmaker(
+            _engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
 
-    engine = _engine
-    async with engine.begin() as conn:
+    async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 

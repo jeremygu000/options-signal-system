@@ -38,8 +38,9 @@ async def db_session() -> AsyncSession:
 
 
 @pytest.fixture()
-def client() -> TestClient:
-    return TestClient(app)
+def client() -> TestClient:  # type: ignore[misc]
+    with TestClient(app) as c:
+        yield c  # type: ignore[misc]
 
 
 class TestWatchlistCRUD:
