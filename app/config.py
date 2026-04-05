@@ -54,8 +54,8 @@ class Settings(BaseSettings):
     api_keys: list[str] = Field(default=[], description="Valid API keys for Bearer auth")
 
     # ── Rate limiting ────────────────────────────────────────────────
-    rate_limit_per_minute: int = Field(default=60, description="Max requests per minute per IP")
-    rate_limit_per_key_per_minute: int = Field(default=120, description="Max requests per minute per API key")
+    rate_limit_per_minute: int = Field(default=30000, description="Max requests per minute per IP")
+    rate_limit_per_key_per_minute: int = Field(default=30000, description="Max requests per minute per API key")
 
     # ── Signal filter ─────────────────────────────────────────────────
     strong_only: bool = Field(

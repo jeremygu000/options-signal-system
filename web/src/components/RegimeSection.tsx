@@ -78,7 +78,7 @@ export default function RegimeSection() {
       {data && (
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 4 }}>
-            <Card>
+            <Card sx={{ height: "100%" }}>
               <CardContent>
                 <Typography
                   variant="caption"
@@ -115,7 +115,7 @@ export default function RegimeSection() {
           </Grid>
 
           <Grid size={{ xs: 12, md: 4 }}>
-            <Card>
+            <Card sx={{ height: "100%" }}>
               <CardContent>
                 <Typography
                   variant="caption"
@@ -143,7 +143,7 @@ export default function RegimeSection() {
           </Grid>
 
           <Grid size={{ xs: 12, md: 4 }}>
-            <Card>
+            <Card sx={{ height: "100%" }}>
               <CardContent>
                 <Typography
                   variant="caption"

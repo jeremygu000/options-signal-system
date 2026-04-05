@@ -93,7 +93,7 @@ function TrainingStatusCard({
   trainSuccess: boolean;
 }) {
   return (
-    <Card>
+    <Card sx={{ height: "100%" }}>
       <CardContent>
         <Typography
           variant="caption"
@@ -232,7 +232,7 @@ function MLRegimeCard({ regime }: { regime: MLRegimeResponse | null }) {
   const PROB_KEYS = ["risk_on", "neutral", "risk_off"] as const;
 
   return (
-    <Card>
+    <Card sx={{ height: "100%" }}>
       <CardContent>
         <Typography
           variant="caption"
